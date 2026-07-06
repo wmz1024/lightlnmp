@@ -17,7 +17,7 @@ foreach ([
     'Db.php', 'Auth.php', 'Csrf.php', 'Security.php', 'Router.php',
     'Services/SystemCommand.php', 'Services/ServiceManager.php', 'Services/SiteManager.php',
     'Services/FileManager.php', 'Services/DatabaseManager.php', 'Services/AcmeManager.php',
-    'Controllers/AuthController.php', 'Controllers/DashboardController.php', 'Controllers/SiteController.php',
+    'Controllers/AuthController.php', 'Controllers/AccountController.php', 'Controllers/DashboardController.php', 'Controllers/SiteController.php',
     'Controllers/FileController.php', 'Controllers/DatabaseController.php', 'Controllers/SslController.php',
     'Controllers/ServiceController.php',
 ] as $file) {

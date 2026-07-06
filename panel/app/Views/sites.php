@@ -29,10 +29,11 @@
                 <?php foreach ($sites as $site): ?>
                     <tr>
                         <td><input class="form-check-input site-row-check" type="checkbox" name="ids[]" value="<?= (int)$site['id'] ?>" form="site-batch-form"></td>
-                        <td><div class="fw-semibold"><?= h($site['name']) ?></div><div class="text-secondary small">创建于 <?= h($site['created_at']) ?></div></td><td><code><?= h($site['root']) ?></code></td>
+                        <td><div class="fw-semibold"><?= h($site['name']) ?></div><div class="text-secondary small">创建于 <?= h($site['created_at']) ?></div></td><td><code><?= h($site['root']) ?></code><div class="mt-2"><form class="d-flex gap-2" method="post" action="?r=sites/action"><?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int)$site['id'] ?>"><input type="hidden" name="action" value="rewrite"><select class="form-select form-select-sm" name="rewrite_rule"><?php foreach ($rewriteRules as $key => $label): ?><option value="<?= h($key) ?>" <?= ($site['rewrite_rule'] ?? 'default') === $key ? 'selected' : '' ?>><?= h($label) ?></option><?php endforeach; ?></select><button class="btn btn-sm btn-outline-primary">应用</button></form></div></td>
                         <td><span class="badge <?= $site['enabled'] ? 'bg-green-lt text-green' : 'bg-secondary-lt text-secondary' ?>"><?= $site['enabled'] ? '启用' : '停用' ?></span></td>
                         <td><div class="action-row">
                             <a class="btn btn-sm btn-outline-primary" href="?r=files&site_id=<?= (int)$site['id'] ?>"><i class="ti ti-folder me-1"></i>文件</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="?r=sites/logs&id=<?= (int)$site['id'] ?>&type=access"><i class="ti ti-file-text me-1"></i>日志</a>
                             <form method="post" action="?r=sites/action"><?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int)$site['id'] ?>"><input type="hidden" name="action" value="<?= $site['enabled'] ? 'disable' : 'enable' ?>"><button class="btn btn-sm btn-outline-secondary"><?= $site['enabled'] ? '停用' : '启用' ?></button></form>
                             <form method="post" action="?r=sites/action" data-confirm="确认删除站点和文件？"><?= Csrf::field() ?><input type="hidden" name="id" value="<?= (int)$site['id'] ?>"><input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-outline-danger"><i class="ti ti-trash me-1"></i>删除</button></form>
                         </div>

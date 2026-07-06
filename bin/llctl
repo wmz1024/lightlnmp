@@ -6,6 +6,7 @@ WEB_ROOT="${LIGHTLNMP_WEB_ROOT:-/www/wwwroot}"
 SSL_ROOT="${LIGHTLNMP_SSL_ROOT:-/etc/lightlnmp/ssl}"
 NGINX_SITES="/etc/nginx/http.d"
 PHP_FPM_SERVICE="${LIGHTLNMP_PHP_FPM_SERVICE:-}"
+REWRITE_ROOT="/etc/lightlnmp/rewrite"
 
 die() {
     echo "$*" >&2
@@ -34,6 +35,13 @@ valid_db_charset() {
 valid_db_collation() {
     case "$1" in
         utf8mb4_unicode_ci|utf8_general_ci|latin1_swedish_ci|gbk_chinese_ci) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+valid_rewrite_rule() {
+    case "$1" in
+        default|wordpress|thinkphp|laravel|static) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -93,8 +101,10 @@ valid_panel_port() {
 write_http_conf() {
     site="$1"
     domains="$2"
+    rule="${3:-default}"
     root="$(site_root "$site")"
     conf="$NGINX_SITES/lightlnmp-$site.conf"
+    write_rewrite_conf "$site" "$rule"
     cat > "$conf" <<EOF
 server {
     listen 80;
@@ -112,7 +122,7 @@ server {
     }
 
     location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
+        include $REWRITE_ROOT/$site.conf;
     }
 
     location ~ \.php$ {
@@ -125,15 +135,44 @@ server {
 EOF
 }
 
+write_rewrite_conf() {
+    site="$1"
+    rule="${2:-default}"
+    valid_site "$site" || die "Invalid site name"
+    valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
+    mkdir -p "$REWRITE_ROOT"
+    conf="$REWRITE_ROOT/$site.conf"
+    case "$rule" in
+        default)
+            printf '%s\n' 'try_files $uri $uri/ /index.php?$query_string;' > "$conf"
+            ;;
+        wordpress)
+            printf '%s\n' 'try_files $uri $uri/ /index.php?$args;' > "$conf"
+            ;;
+        thinkphp)
+            printf '%s\n' 'if (!-e $request_filename) { rewrite ^(.*)$ /index.php?s=$1 last; }' > "$conf"
+            ;;
+        laravel)
+            printf '%s\n' 'try_files $uri $uri/ /index.php?$query_string;' > "$conf"
+            ;;
+        static)
+            printf '%s\n' 'try_files $uri $uri/ =404;' > "$conf"
+            ;;
+    esac
+    chmod 0644 "$conf"
+}
+
 write_https_conf() {
     site="$1"
     identifier="$2"
     force_https="${3:-0}"
+    rule="${4:-default}"
     valid_site "$site" || die "Invalid site name"
     valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
     root="$(site_root "$site")"
     ssl_dir="$SSL_ROOT/$site"
     conf="$NGINX_SITES/lightlnmp-$site-ssl.conf"
+    write_rewrite_conf "$site" "$rule"
 
     cat > "$conf" <<EOF
 server {
@@ -152,7 +191,7 @@ server {
     error_log /var/log/nginx/$site.ssl.error.log warn;
 
     location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
+        include $REWRITE_ROOT/$site.conf;
     }
 
     location ~ \.php$ {
@@ -199,6 +238,32 @@ EOF
     chown -R nginx:nginx "$root"
     write_http_conf "$site" "$domains"
     nginx_reload
+}
+
+cmd_site_rewrite() {
+    site="$1"
+    domains="$2"
+    rule="$3"
+    valid_site "$site" || die "Invalid site name"
+    valid_domain_or_ip "$domains" || die "Invalid domain/IP"
+    valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
+    write_http_conf "$site" "$domains" "$rule"
+    nginx_reload
+}
+
+cmd_site_log() {
+    site="$1"
+    type="$2"
+    valid_site "$site" || die "Invalid site name"
+    case "$type" in
+        access) file="/var/log/nginx/$site.access.log" ;;
+        error) file="/var/log/nginx/$site.error.log" ;;
+        ssl-access) file="/var/log/nginx/$site.ssl.access.log" ;;
+        ssl-error) file="/var/log/nginx/$site.ssl.error.log" ;;
+        *) die "Invalid log type" ;;
+    esac
+    [ -f "$file" ] || die "Log file not found"
+    tail -n 200 "$file"
 }
 
 cmd_site_delete() {
@@ -286,6 +351,26 @@ cmd_db() {
             valid_db_name "$db" || die "Invalid database name"
             mariadb -e "GRANT ALL PRIVILEGES ON \`$db\`.* TO '$user'@'localhost'; FLUSH PRIVILEGES;"
             ;;
+        export)
+            db="$2"; valid_db_name "$db" || die "Invalid database name"
+            if command -v mariadb-dump >/dev/null 2>&1; then
+                mariadb-dump --single-transaction "$db"
+            elif command -v mysqldump >/dev/null 2>&1; then
+                mysqldump --single-transaction "$db"
+            else
+                die "Database dump command not found"
+            fi
+            ;;
+        import)
+            db="$2"; file="$3"
+            valid_db_name "$db" || die "Invalid database name"
+            import_root="$INSTALL_DIR/panel/storage/imports"
+            resolved="$(realpath "$file" 2>/dev/null || true)"
+            root_resolved="$(realpath "$import_root" 2>/dev/null || true)"
+            [ -n "$resolved" ] && [ -n "$root_resolved" ] || die "Invalid import file"
+            case "$resolved" in "$root_resolved"/*) ;; *) die "Invalid import file" ;; esac
+            mariadb "$db" < "$resolved"
+            ;;
         *) die "Invalid database action" ;;
     esac
 }
@@ -304,9 +389,10 @@ cmd_ssl() {
     action="$1"
     case "$action" in
         issue)
-            site="$2"; identifier="$3"; type="${4:-domain}"; force_https="${5:-0}"
+            site="$2"; identifier="$3"; type="${4:-domain}"; force_https="${5:-0}"; rule="${6:-default}"
             valid_site "$site" || die "Invalid site name"
             valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
+            valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
             root="$(site_root "$site")"
             ssl_dir="$SSL_ROOT/$site"
             mkdir -p "$ssl_dir"
@@ -320,7 +406,7 @@ cmd_ssl() {
                 --fullchain-file "$ssl_dir/fullchain.pem" \
                 --reloadcmd "nginx -t && rc-service nginx reload"
             chmod 0640 "$ssl_dir/privkey.pem" "$ssl_dir/fullchain.pem" 2>/dev/null || true
-            write_https_conf "$site" "$identifier" "$force_https"
+            write_https_conf "$site" "$identifier" "$force_https" "$rule"
             nginx_reload
             ;;
         renew-all)
@@ -402,6 +488,8 @@ case "$cmd" in
     site-delete) cmd_site_delete "$@" ;;
     site-enable) cmd_site_enable "$@" ;;
     site-disable) cmd_site_disable "$@" ;;
+    site-rewrite) cmd_site_rewrite "$@" ;;
+    site-log) cmd_site_log "$@" ;;
     service) cmd_service "$@" ;;
     db) cmd_db "$@" ;;
     ssl) cmd_ssl "$@" ;;

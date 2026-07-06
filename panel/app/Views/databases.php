@@ -17,6 +17,14 @@
             <div class="mb-3"><select class="form-select" name="charset"><?php foreach ($charsets as $charset => $collation): ?><option value="<?= h($charset) ?>"><?= h($charset) ?> / <?= h($collation) ?></option><?php endforeach; ?></select></div>
             <button class="btn btn-outline-primary w-100">创建数据库</button>
         </form>
+        <hr>
+        <div class="d-flex align-items-center gap-2 mb-3"><i class="ti ti-upload text-primary"></i><h3 class="card-title mb-0">导入 SQL</h3></div>
+        <form method="post" enctype="multipart/form-data" data-confirm="确认导入 SQL 到所选数据库？">
+            <?= Csrf::field() ?><input type="hidden" name="action" value="import">
+            <div class="mb-2"><select class="form-select" name="database" required><?php foreach ($allDatabases as $db): ?><option value="<?= h($db) ?>"><?= h($db) ?></option><?php endforeach; ?></select></div>
+            <div class="mb-3"><input class="form-control" type="file" name="sql_file" accept=".sql" required></div>
+            <button class="btn btn-outline-primary w-100">导入数据库</button>
+        </form>
     </div></div></div>
     <div class="col-lg-8">
         <div class="card mb-3">
@@ -28,7 +36,7 @@
                 </form>
             </div>
             <div class="table-responsive"><table class="table table-vcenter card-table table-hover"><thead><tr><th class="w-1"><input class="form-check-input" type="checkbox" data-check-all="db-row-check"></th><th>数据库</th><th class="text-end">操作</th></tr></thead><tbody>
-                <?php foreach ($databases as $db): ?><tr><td><input class="form-check-input db-row-check" type="checkbox" name="names[]" value="<?= h($db) ?>" form="db-batch-form"></td><td><i class="ti ti-database me-2 text-primary"></i><?= h($db) ?></td><td><div class="action-row"><form method="post" data-confirm="确认删除数据库？"><?= Csrf::field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="name" value="<?= h($db) ?>"><button class="btn btn-sm btn-outline-danger"><i class="ti ti-trash me-1"></i>删除</button></form></div></td></tr><?php endforeach; ?>
+                <?php foreach ($databases as $db): ?><tr><td><input class="form-check-input db-row-check" type="checkbox" name="names[]" value="<?= h($db) ?>" form="db-batch-form"></td><td><i class="ti ti-database me-2 text-primary"></i><?= h($db) ?></td><td><div class="action-row"><a class="btn btn-sm btn-outline-secondary" href="?r=databases/export&name=<?= rawurlencode($db) ?>"><i class="ti ti-download me-1"></i>导出</a><form method="post" data-confirm="确认删除数据库？"><?= Csrf::field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="name" value="<?= h($db) ?>"><button class="btn btn-sm btn-outline-danger"><i class="ti ti-trash me-1"></i>删除</button></form></div></td></tr><?php endforeach; ?>
                 <?php if (!$databases): ?><tr><td colspan="3" class="text-center text-secondary py-4">暂无数据库或 MariaDB 未安装</td></tr><?php endif; ?>
             </tbody></table></div>
             <?php if ($dbPager['pages'] > 1): ?><div class="card-footer d-flex justify-content-end"><ul class="pagination m-0"><?php for ($i = 1; $i <= $dbPager['pages']; $i++): ?><li class="page-item <?= $i === $dbPager['page'] ? 'active' : '' ?>"><a class="page-link" href="<?= h(query_url([$dbPager['param'] => $i])) ?>"><?= $i ?></a></li><?php endfor; ?></ul></div><?php endif; ?>

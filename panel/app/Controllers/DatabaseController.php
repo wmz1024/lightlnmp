@@ -13,6 +13,7 @@ final class DatabaseController
                 'create-user-db' => $manager->createUserAndDatabase(trim($_POST['database'] ?? ''), trim($_POST['user'] ?? ''), $_POST['password'] ?? '', $_POST['charset'] ?? 'utf8mb4'),
                 'delete' => $manager->delete(trim($_POST['name'] ?? '')),
                 'batch-delete' => $manager->batchDelete($_POST['names'] ?? []),
+                'import' => $manager->import(trim($_POST['database'] ?? ''), $_FILES['sql_file'] ?? []),
                 'user-create' => $manager->createUser(trim($_POST['user'] ?? ''), $_POST['password'] ?? '', trim($_POST['database'] ?? '')),
                 'user-delete' => $manager->deleteUser(trim($_POST['user'] ?? '')),
                 'user-password' => $manager->changePassword(trim($_POST['user'] ?? ''), $_POST['password'] ?? ''),
@@ -34,5 +35,19 @@ final class DatabaseController
             'dbUserPager' => $userPager,
             'charsets' => $manager->charsets(),
         ]);
+    }
+
+    public function export(): void
+    {
+        $name = trim($_GET['name'] ?? '');
+        $run = (new DatabaseManager())->export($name);
+        if (!$run['ok']) {
+            flash($run['output'], 'danger');
+            redirect('databases');
+        }
+        header('Content-Type: application/sql; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $name . '-' . date('YmdHis') . '.sql"');
+        echo $run['output'];
+        exit;
     }
 }

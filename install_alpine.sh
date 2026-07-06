@@ -283,6 +283,7 @@ CREATE TABLE IF NOT EXISTS sites (
   root TEXT NOT NULL,
   enabled INTEGER NOT NULL DEFAULT 1,
   force_https INTEGER NOT NULL DEFAULT 0,
+  rewrite_rule TEXT NOT NULL DEFAULT 'default',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS domains (
@@ -311,6 +312,15 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   result TEXT NOT NULL,
   detail TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  ip TEXT NOT NULL,
+  failed_count INTEGER NOT NULL DEFAULT 0,
+  locked_until INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(username, ip)
 );
 INSERT INTO users(username, password_hash) VALUES('$ADMIN_USER', '$password_hash')
   ON CONFLICT(username) DO UPDATE SET password_hash = excluded.password_hash;

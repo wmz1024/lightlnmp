@@ -26,7 +26,7 @@ final class AcmeManager
             return ['ok' => false, 'output' => 'Only public domains or public IP addresses are allowed'];
         }
         $type = Security::ip($identifier) ? 'ip' : 'domain';
-        $run = SystemCommand::run(['ssl', 'issue', $site['name'], $identifier, $type, $forceHttps ? '1' : '0']);
+        $run = SystemCommand::run(['ssl', 'issue', $site['name'], $identifier, $type, $forceHttps ? '1' : '0', $site['rewrite_rule'] ?? 'default']);
         $stmt = Db::conn()->prepare('INSERT INTO certificates(site_id, identifier, identifier_type, status, updated_at) VALUES(:site_id, :identifier, :type, :status, CURRENT_TIMESTAMP) ON CONFLICT(site_id, identifier) DO UPDATE SET status = excluded.status, updated_at = CURRENT_TIMESTAMP');
         $stmt->execute(['site_id' => $siteId, 'identifier' => $identifier, 'type' => $type, 'status' => $run['ok'] ? 'issued' : 'failed']);
         if ($forceHttps) {

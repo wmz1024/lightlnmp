@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS sites (
   root TEXT NOT NULL,
   enabled INTEGER NOT NULL DEFAULT 1,
   force_https INTEGER NOT NULL DEFAULT 0,
+  rewrite_rule TEXT NOT NULL DEFAULT 'default',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS domains (
@@ -59,7 +60,28 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   detail TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  ip TEXT NOT NULL,
+  failed_count INTEGER NOT NULL DEFAULT 0,
+  locked_until INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(username, ip)
+);
 SQL);
+        self::addColumn('sites', 'rewrite_rule', "TEXT NOT NULL DEFAULT 'default'");
+    }
+
+    private static function addColumn(string $table, string $column, string $definition): void
+    {
+        $stmt = self::conn()->query('PRAGMA table_info(' . $table . ')');
+        foreach ($stmt->fetchAll() as $row) {
+            if (($row['name'] ?? '') === $column) {
+                return;
+            }
+        }
+        self::conn()->exec('ALTER TABLE ' . $table . ' ADD COLUMN ' . $column . ' ' . $definition);
     }
 
     public static function audit(string $action, string $target, string $result, string $detail = ''): void

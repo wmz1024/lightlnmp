@@ -14,8 +14,9 @@ final class SiteController
             flash($run['ok'] ? ($action === 'batch' ? '批量操作完成' : '站点已创建') : $run['output'], $run['ok'] ? 'success' : 'danger');
             redirect('sites');
         }
-        $pager = paginate((new SiteManager())->all(), 'sites_page');
-        view('sites', ['title' => '站点管理', 'sites' => $pager['items'], 'sitesPager' => $pager]);
+        $manager = new SiteManager();
+        $pager = paginate($manager->all(), 'sites_page');
+        view('sites', ['title' => '站点管理', 'sites' => $pager['items'], 'sitesPager' => $pager, 'rewriteRules' => $manager->rewriteRules()]);
     }
 
     public function action(string $method): void
@@ -31,9 +32,24 @@ final class SiteController
             'enable' => $manager->setEnabled($id, true),
             'disable' => $manager->setEnabled($id, false),
             'delete' => $manager->delete($id),
+            'rewrite' => $manager->setRewriteRule($id, $_POST['rewrite_rule'] ?? 'default'),
             default => ['ok' => false, 'output' => 'Unknown action'],
         };
         flash($run['ok'] ? '操作完成' : $run['output'], $run['ok'] ? 'success' : 'danger');
         redirect('sites');
+    }
+
+    public function logs(): void
+    {
+        $manager = new SiteManager();
+        $id = (int)($_GET['id'] ?? 0);
+        $type = $_GET['type'] ?? 'access';
+        $site = $manager->find($id);
+        if (!$site) {
+            flash('站点不存在', 'danger');
+            redirect('sites');
+        }
+        $run = $manager->logs($id, $type);
+        view('site_logs', ['title' => '站点日志', 'site' => $site, 'type' => $type, 'logOutput' => $run['output'], 'ok' => $run['ok']]);
     }
 }

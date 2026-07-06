@@ -133,4 +133,40 @@ final class DatabaseManager
         }
         return $errors ? ['ok' => false, 'output' => implode("\n", $errors)] : ['ok' => true, 'output' => 'ok'];
     }
+
+    public function export(string $name): array
+    {
+        if (!Security::dbName($name)) {
+            return ['ok' => false, 'output' => 'Invalid database name'];
+        }
+        $run = SystemCommand::run(['db', 'export', $name]);
+        Db::audit('db.export', $name, $run['ok'] ? 'ok' : 'fail', $run['ok'] ? '' : $run['output']);
+        return $run;
+    }
+
+    public function import(string $name, array $file): array
+    {
+        if (!Security::dbName($name)) {
+            return ['ok' => false, 'output' => 'Invalid database name'];
+        }
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'] ?? '')) {
+            return ['ok' => false, 'output' => 'SQL upload failed'];
+        }
+        $ext = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+        if ($ext !== 'sql') {
+            return ['ok' => false, 'output' => 'Only .sql files can be imported'];
+        }
+        $dir = STORAGE_PATH . '/imports';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0750, true);
+        }
+        $target = $dir . '/' . date('YmdHis') . '-' . bin2hex(random_bytes(4)) . '.sql';
+        if (!move_uploaded_file($file['tmp_name'], $target)) {
+            return ['ok' => false, 'output' => 'Unable to store SQL file'];
+        }
+        $run = SystemCommand::run(['db', 'import', $name, $target]);
+        @unlink($target);
+        Db::audit('db.import', $name, $run['ok'] ? 'ok' : 'fail', $run['output']);
+        return $run;
+    }
 }

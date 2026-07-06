@@ -64,6 +64,7 @@ $navItems = [
                             </div>
                         </a>
                         <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                            <a class="dropdown-item" href="?r=account"><i class="ti ti-lock me-2"></i>账户设置</a>
                             <a class="dropdown-item" href="?r=logout"><i class="ti ti-logout me-2"></i>退出登录</a>
                         </div>
                     </div>

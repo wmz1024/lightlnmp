@@ -34,6 +34,7 @@ code { color: #384250; }
 .monaco-editor { height: clamp(440px, 68vh, 820px); }
 .monaco-source { border: 0; border-radius: 0; margin: 0 !important; resize: vertical; }
 .extract-log { height: 260px; margin: 0; padding: .875rem; overflow: auto; border-radius: 6px; background: #0f172a; color: #d6e2ff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+.log-viewer { min-height: 64vh; max-height: 76vh; padding: 1rem; overflow: auto; background: #0f172a; color: #d6e2ff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
 @media (max-width: 991.98px) {
   .editor-card-header { align-items: stretch; }
   .editor-card-header .btn { align-self: flex-start; }

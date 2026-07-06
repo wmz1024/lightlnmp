@@ -2,6 +2,14 @@
 
 final class SiteManager
 {
+    private array $rewriteRules = [
+        'default' => '默认 PHP 入口',
+        'wordpress' => 'WordPress',
+        'thinkphp' => 'ThinkPHP',
+        'laravel' => 'Laravel',
+        'static' => '静态站点',
+    ];
+
     public function all(): array
     {
         return Db::conn()->query('SELECT * FROM sites ORDER BY id DESC')->fetchAll();
@@ -35,6 +43,45 @@ final class SiteManager
             Db::audit('site.create', $name, 'ok', $domain);
         }
         return $run;
+    }
+
+    public function rewriteRules(): array
+    {
+        return $this->rewriteRules;
+    }
+
+    public function primaryDomain(int $siteId): string
+    {
+        $stmt = Db::conn()->prepare('SELECT domain FROM domains WHERE site_id = :id ORDER BY is_primary DESC, id ASC LIMIT 1');
+        $stmt->execute(['id' => $siteId]);
+        return (string)($stmt->fetchColumn() ?: '');
+    }
+
+    public function setRewriteRule(int $id, string $rule): array
+    {
+        if (!isset($this->rewriteRules[$rule])) {
+            return ['ok' => false, 'output' => 'Invalid rewrite rule'];
+        }
+        $site = $this->find($id);
+        if (!$site) {
+            return ['ok' => false, 'output' => 'Site not found'];
+        }
+        $domain = $this->primaryDomain($id) ?: $site['name'];
+        $run = SystemCommand::run(['site-rewrite', $site['name'], $domain, $rule]);
+        if ($run['ok']) {
+            Db::conn()->prepare('UPDATE sites SET rewrite_rule = :rule WHERE id = :id')->execute(['rule' => $rule, 'id' => $id]);
+            Db::audit('site.rewrite', $site['name'], 'ok', $rule);
+        }
+        return $run;
+    }
+
+    public function logs(int $id, string $type): array
+    {
+        $site = $this->find($id);
+        if (!$site) {
+            return ['ok' => false, 'output' => 'Site not found'];
+        }
+        return SystemCommand::run(['site-log', $site['name'], $type]);
     }
 
     public function delete(int $id): array
