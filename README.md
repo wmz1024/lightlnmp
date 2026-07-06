@@ -1,5 +1,7 @@
 # LightLNMP
 
+[中文说明](README.zh.md)
+
 LightLNMP is a lightweight Alpine Linux web hosting panel using Nginx, PHP-FPM, SQLite, optional MariaDB, and acme.sh.
 
 The panel itself is written in PHP and stores metadata in SQLite. System packages are installed through `apk`.
@@ -43,6 +45,12 @@ See [docs/alpine-install.md](docs/alpine-install.md) and [docs/usage.md](docs/us
 ## Update
 
 Update directly from GitHub on an installed server:
+
+```sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/updateall.sh | sh
+```
+
+Or use the installed updater:
 
 ```sh
 sh /opt/lightlnmp/update.sh --from-repo

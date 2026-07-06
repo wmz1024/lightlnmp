@@ -3,6 +3,12 @@
 Update directly from GitHub on an installed server:
 
 ```sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/updateall.sh | sh
+```
+
+Or use the installed updater to fetch the latest source from GitHub:
+
+```sh
 sh /opt/lightlnmp/update.sh --from-repo
 ```
 
@@ -29,6 +35,7 @@ sh update.sh --panel-port 8888 --install-dir /opt/lightlnmp --web-root /www/wwwr
 The repository update mode accepts the same update options:
 
 ```sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/updateall.sh | sh -s -- --panel-port 8888 --no-reload
 sh /opt/lightlnmp/update.sh --from-repo --panel-port 8888 --no-reload
 /opt/lightlnmp/bin/llctl update from-repo --panel-port 8888 --no-reload
 ```
@@ -44,6 +51,7 @@ The updater replaces these installed files from the current repository checkout:
 /opt/lightlnmp/config
 /opt/lightlnmp/installall.sh
 /opt/lightlnmp/install_alpine.sh
+/opt/lightlnmp/updateall.sh
 /opt/lightlnmp/update.sh
 /opt/lightlnmp/update_alpine.sh
 ```

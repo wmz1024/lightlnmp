@@ -157,7 +157,7 @@ copy_project() {
     cp -R "$src_dir/panel" "$INSTALL_DIR/"
     cp -R "$src_dir/bin" "$INSTALL_DIR/"
     cp -R "$src_dir/config" "$INSTALL_DIR/"
-    for file in installall.sh install_alpine.sh update.sh update_alpine.sh; do
+    for file in installall.sh install_alpine.sh updateall.sh update.sh update_alpine.sh; do
         if [ -f "$src_dir/$file" ]; then
             cp "$src_dir/$file" "$INSTALL_DIR/$file"
         fi

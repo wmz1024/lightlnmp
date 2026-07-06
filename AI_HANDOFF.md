@@ -20,6 +20,7 @@ LightLNMP 是一个面向 Alpine Linux 的极轻量 LNMP WebHosting 管理面板
 ```text
 installall.sh              GitHub 一键安装入口，自动识别系统并 clone 仓库
 install_alpine.sh          Alpine 安装脚本
+updateall.sh               GitHub 一键更新入口，自动识别系统并 clone 仓库
 update.sh                  自动识别系统并调用对应更新脚本
 update_alpine.sh           Alpine 已安装环境的更新脚本，支持 --from-repo
 bin/llctl                  root 权限白名单控制脚本，由 doas 调用
@@ -70,6 +71,12 @@ sh install_alpine.sh --with-mariadb --admin-password 'your-password'
 注意：`--admin-password` 的值必须在同一条命令里，不能换行后单独输入。
 
 ## 更新方式
+
+```sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/updateall.sh | sh
+```
+
+或使用已安装的更新入口：
 
 ```sh
 sh /opt/lightlnmp/update.sh --from-repo
@@ -222,6 +229,7 @@ bin/llctl
 ```sh
 sh -n install_alpine.sh
 sh -n installall.sh
+sh -n updateall.sh
 sh -n update.sh
 sh -n update_alpine.sh
 sh -n bin/llctl
