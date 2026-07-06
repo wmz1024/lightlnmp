@@ -10,7 +10,6 @@ body { background: #f3f5f8; }
 .brand-mark { display: inline-grid; width: 32px; height: 32px; place-items: center; border-radius: 8px; background: #206bc4; color: #fff; font-weight: 700; }
 .page-header { margin: 0 0 1.75rem; }
 .page-title { margin-bottom: .25rem; }
-.page-body { padding-top: 1.25rem; }
 .card { border: 1px solid #e7eaf0; box-shadow: 0 8px 24px rgba(15, 23, 42, .04); }
 .table thead th { color: #667085; font-size: .78rem; font-weight: 600; text-transform: uppercase; }
 .toolbar-card .card-body { padding: 1rem; }
@@ -22,3 +21,4 @@ body { background: #f3f5f8; }
 code { color: #384250; }
 .action-row { display: flex; gap: .375rem; flex-wrap: wrap; justify-content: flex-end; }
 .metric-icon { width: 42px; height: 42px; display: inline-grid; place-items: center; border-radius: 10px; }
+.page-title{padding-bottom: 1rem;}
