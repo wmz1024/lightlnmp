@@ -1,0 +1,76 @@
+<?php
+
+final class Db
+{
+    private static ?PDO $conn = null;
+
+    public static function conn(): PDO
+    {
+        if (self::$conn === null) {
+            self::$conn = new PDO('sqlite:' . DB_PATH);
+            self::$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            self::$conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+        }
+        return self::$conn;
+    }
+
+    public static function migrate(): void
+    {
+        self::conn()->exec(<<<SQL
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sites (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  root TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  force_https INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS domains (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  site_id INTEGER NOT NULL,
+  domain TEXT NOT NULL,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(site_id, domain)
+);
+CREATE TABLE IF NOT EXISTS certificates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  site_id INTEGER NOT NULL,
+  identifier TEXT NOT NULL,
+  identifier_type TEXT NOT NULL,
+  ca TEXT NOT NULL DEFAULT 'letsencrypt',
+  status TEXT NOT NULL DEFAULT 'unknown',
+  expires_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(site_id, identifier)
+);
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target TEXT NOT NULL,
+  result TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+SQL);
+    }
+
+    public static function audit(string $action, string $target, string $result, string $detail = ''): void
+    {
+        $stmt = self::conn()->prepare('INSERT INTO audit_logs(actor, action, target, result, detail) VALUES(:actor, :action, :target, :result, :detail)');
+        $stmt->execute([
+            'actor' => Auth::user()['username'] ?? 'system',
+            'action' => $action,
+            'target' => $target,
+            'result' => $result,
+            'detail' => $detail,
+        ]);
+    }
+}

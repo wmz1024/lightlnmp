@@ -1,0 +1,11 @@
+[mysqld]
+performance_schema=OFF
+skip-name-resolve
+max_connections=20
+table_open_cache=64
+tmp_table_size=8M
+max_heap_table_size=8M
+key_buffer_size=4M
+innodb_buffer_pool_size=32M
+innodb_log_buffer_size=4M
+innodb_flush_log_at_trx_commit=2

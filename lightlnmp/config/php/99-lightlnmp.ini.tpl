@@ -1,0 +1,13 @@
+expose_php = Off
+memory_limit = 96M
+upload_max_filesize = 32M
+post_max_size = 32M
+max_execution_time = 60
+max_input_time = 60
+session.cookie_httponly = 1
+session.cookie_samesite = Lax
+opcache.enable = 1
+opcache.memory_consumption = 16
+opcache.interned_strings_buffer = 4
+opcache.max_accelerated_files = 2000
+opcache.validate_timestamps = 1

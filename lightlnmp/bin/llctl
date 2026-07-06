@@ -1,0 +1,298 @@
+#!/bin/sh
+set -eu
+
+INSTALL_DIR="${LIGHTLNMP_INSTALL_DIR:-/opt/lightlnmp}"
+WEB_ROOT="${LIGHTLNMP_WEB_ROOT:-/www/wwwroot}"
+SSL_ROOT="${LIGHTLNMP_SSL_ROOT:-/etc/lightlnmp/ssl}"
+NGINX_SITES="/etc/nginx/http.d"
+PHP_FPM_SERVICE="${LIGHTLNMP_PHP_FPM_SERVICE:-}"
+
+die() {
+    echo "$*" >&2
+    exit 1
+}
+
+valid_site() {
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'
+}
+
+valid_domain_or_ip() {
+    printf '%s' "$1" | grep -Eq '^([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$|^[0-9]{1,3}(\.[0-9]{1,3}){3}$|^[0-9A-Fa-f:]+$'
+}
+
+valid_db_name() {
+    printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]{1,64}$'
+}
+
+site_root() {
+    valid_site "$1" || die "Invalid site name"
+    printf '%s/%s' "$WEB_ROOT" "$1"
+}
+
+nginx_reload() {
+    nginx -t
+    rc-service nginx reload
+}
+
+php_fpm_service() {
+    if [ -n "$PHP_FPM_SERVICE" ] && [ -f "/etc/init.d/$PHP_FPM_SERVICE" ]; then
+        echo "$PHP_FPM_SERVICE"
+        return 0
+    fi
+    php_suffix=$(php -r 'echo PHP_MAJOR_VERSION . PHP_MINOR_VERSION;' 2>/dev/null || true)
+    if [ -n "$php_suffix" ] && [ -f "/etc/init.d/php-fpm$php_suffix" ]; then
+        echo "php-fpm$php_suffix"
+        return 0
+    fi
+    for svc in php-fpm85 php-fpm84 php-fpm83 php-fpm82 php-fpm81 php-fpm php85-fpm php84-fpm php83-fpm php82-fpm php81-fpm; do
+        if [ -f "/etc/init.d/$svc" ]; then
+            echo "$svc"
+            return 0
+        fi
+    done
+    echo "php-fpm"
+}
+
+sql_escape() {
+    printf '%s' "$1" | sed "s/'/''/g"
+}
+
+write_http_conf() {
+    site="$1"
+    domains="$2"
+    root="$(site_root "$site")"
+    conf="$NGINX_SITES/lightlnmp-$site.conf"
+    cat > "$conf" <<EOF
+server {
+    listen 80;
+    server_name $domains;
+    root $root;
+    index index.php index.html index.htm;
+
+    access_log /var/log/nginx/$site.access.log;
+    error_log /var/log/nginx/$site.error.log warn;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root $root;
+        default_type text/plain;
+        try_files \$uri =404;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files \$uri =404;
+        fastcgi_pass 127.0.0.1:9075;
+        fastcgi_index index.php;
+        include fastcgi.conf;
+    }
+}
+EOF
+}
+
+write_https_conf() {
+    site="$1"
+    identifier="$2"
+    force_https="${3:-0}"
+    valid_site "$site" || die "Invalid site name"
+    valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
+    root="$(site_root "$site")"
+    ssl_dir="$SSL_ROOT/$site"
+    conf="$NGINX_SITES/lightlnmp-$site-ssl.conf"
+
+    cat > "$conf" <<EOF
+server {
+    listen 443 ssl http2;
+    server_name $identifier;
+    root $root;
+    index index.php index.html index.htm;
+
+    ssl_certificate $ssl_dir/fullchain.pem;
+    ssl_certificate_key $ssl_dir/privkey.pem;
+    ssl_session_cache shared:SSL:2m;
+    ssl_session_timeout 10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    access_log /var/log/nginx/$site.ssl.access.log;
+    error_log /var/log/nginx/$site.ssl.error.log warn;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files \$uri =404;
+        fastcgi_pass 127.0.0.1:9075;
+        fastcgi_index index.php;
+        include fastcgi.conf;
+    }
+}
+EOF
+
+    if [ "$force_https" = "1" ]; then
+        cat > "$NGINX_SITES/lightlnmp-$site.conf" <<EOF
+server {
+    listen 80;
+    server_name $identifier;
+    root $root;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root $root;
+        default_type text/plain;
+        try_files \$uri =404;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+EOF
+    fi
+}
+
+cmd_site_create() {
+    site="$1"
+    domains="${2:-$1}"
+    valid_site "$site" || die "Invalid site name"
+    root="$(site_root "$site")"
+    mkdir -p "$root"
+    if [ ! -f "$root/index.php" ]; then
+        cat > "$root/index.php" <<EOF
+<?php echo 'LightLNMP site: ' . htmlspecialchars('$site', ENT_QUOTES, 'UTF-8');
+EOF
+    fi
+    chown -R nginx:nginx "$root"
+    write_http_conf "$site" "$domains"
+    nginx_reload
+}
+
+cmd_site_delete() {
+    site="$1"
+    valid_site "$site" || die "Invalid site name"
+    rm -f "$NGINX_SITES/lightlnmp-$site.conf" "$NGINX_SITES/lightlnmp-$site-ssl.conf"
+    rm -rf "$(site_root "$site")"
+    nginx_reload
+}
+
+cmd_site_disable() {
+    site="$1"
+    valid_site "$site" || die "Invalid site name"
+    [ -f "$NGINX_SITES/lightlnmp-$site.conf" ] && mv "$NGINX_SITES/lightlnmp-$site.conf" "$NGINX_SITES/lightlnmp-$site.conf.disabled"
+    [ -f "$NGINX_SITES/lightlnmp-$site-ssl.conf" ] && mv "$NGINX_SITES/lightlnmp-$site-ssl.conf" "$NGINX_SITES/lightlnmp-$site-ssl.conf.disabled"
+    nginx_reload
+}
+
+cmd_site_enable() {
+    site="$1"
+    valid_site "$site" || die "Invalid site name"
+    [ -f "$NGINX_SITES/lightlnmp-$site.conf.disabled" ] && mv "$NGINX_SITES/lightlnmp-$site.conf.disabled" "$NGINX_SITES/lightlnmp-$site.conf"
+    [ -f "$NGINX_SITES/lightlnmp-$site-ssl.conf.disabled" ] && mv "$NGINX_SITES/lightlnmp-$site-ssl.conf.disabled" "$NGINX_SITES/lightlnmp-$site-ssl.conf"
+    nginx_reload
+}
+
+cmd_service() {
+    action="$1"
+    service="$2"
+    case "$service" in
+        nginx) svc="nginx" ;;
+        php-fpm) svc="$(php_fpm_service)" ;;
+        mariadb) svc="mariadb" ;;
+        crond) svc="crond" ;;
+        *) die "Invalid service" ;;
+    esac
+    case "$action" in
+        status|start|stop|restart|reload) rc-service "$svc" "$action" ;;
+        *) die "Invalid service action" ;;
+    esac
+}
+
+cmd_db() {
+    action="$1"
+    case "$action" in
+        list)
+            mariadb -NBe "SHOW DATABASES WHERE \`Database\` NOT IN ('information_schema','mysql','performance_schema','sys');"
+            ;;
+        create)
+            db="$2"; valid_db_name "$db" || die "Invalid database name"
+            mariadb -e "CREATE DATABASE IF NOT EXISTS \`$db\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+            ;;
+        delete)
+            db="$2"; valid_db_name "$db" || die "Invalid database name"
+            mariadb -e "DROP DATABASE IF EXISTS \`$db\`;"
+            ;;
+        user-create)
+            user="$2"; pass="$(sql_escape "$3")"; db="${4:-}"
+            valid_db_name "$user" || die "Invalid database user"
+            mariadb -e "CREATE USER IF NOT EXISTS '$user'@'localhost' IDENTIFIED BY '$pass';"
+            if [ -n "$db" ]; then
+                valid_db_name "$db" || die "Invalid database name"
+                mariadb -e "GRANT ALL PRIVILEGES ON \`$db\`.* TO '$user'@'localhost'; FLUSH PRIVILEGES;"
+            fi
+            ;;
+        user-password)
+            user="$2"; pass="$(sql_escape "$3")"
+            valid_db_name "$user" || die "Invalid database user"
+            mariadb -e "ALTER USER '$user'@'localhost' IDENTIFIED BY '$pass'; FLUSH PRIVILEGES;"
+            ;;
+        *) die "Invalid database action" ;;
+    esac
+}
+
+acme_cmd() {
+    if command -v acme.sh >/dev/null 2>&1; then
+        command acme.sh "$@"
+    elif [ -x /usr/bin/acme.sh ]; then
+        /usr/bin/acme.sh "$@"
+    else
+        die "acme.sh not found"
+    fi
+}
+
+cmd_ssl() {
+    action="$1"
+    case "$action" in
+        issue)
+            site="$2"; identifier="$3"; type="${4:-domain}"; force_https="${5:-0}"
+            valid_site "$site" || die "Invalid site name"
+            valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
+            root="$(site_root "$site")"
+            ssl_dir="$SSL_ROOT/$site"
+            mkdir -p "$ssl_dir"
+            if [ "$type" = "ip" ]; then
+                acme_cmd --issue --server letsencrypt -d "$identifier" -w "$root" --cert-profile shortlived --days 3
+            else
+                acme_cmd --issue --server letsencrypt -d "$identifier" -w "$root"
+            fi
+            acme_cmd --install-cert -d "$identifier" \
+                --key-file "$ssl_dir/privkey.pem" \
+                --fullchain-file "$ssl_dir/fullchain.pem" \
+                --reloadcmd "nginx -t && rc-service nginx reload"
+            chmod 0640 "$ssl_dir/privkey.pem" "$ssl_dir/fullchain.pem" 2>/dev/null || true
+            write_https_conf "$site" "$identifier" "$force_https"
+            nginx_reload
+            ;;
+        renew-all)
+            acme_cmd --cron --home /root/.acme.sh || acme_cmd --cron
+            nginx_reload
+            ;;
+        *) die "Invalid ssl action" ;;
+    esac
+}
+
+cmd="${1:-}"
+[ -n "$cmd" ] || die "Missing command"
+shift || true
+
+case "$cmd" in
+    site-create) cmd_site_create "$@" ;;
+    site-delete) cmd_site_delete "$@" ;;
+    site-enable) cmd_site_enable "$@" ;;
+    site-disable) cmd_site_disable "$@" ;;
+    service) cmd_service "$@" ;;
+    db) cmd_db "$@" ;;
+    ssl) cmd_ssl "$@" ;;
+    nginx-reload) nginx_reload ;;
+    *) die "Unknown command: $cmd" ;;
+esac
