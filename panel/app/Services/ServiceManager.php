@@ -15,6 +15,9 @@ final class ServiceManager
 
     public function action(string $service, string $action): array
     {
+        if (!in_array($action, ['start', 'status'], true)) {
+            return ['ok' => false, 'output' => 'Stopping or restarting services is not allowed from the panel'];
+        }
         return SystemCommand::run(['service', $action, $service]);
     }
 }

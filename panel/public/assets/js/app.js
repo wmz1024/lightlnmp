@@ -13,6 +13,83 @@ document.addEventListener('show.bs.modal', function (event) {
   document.getElementById('rename-name').value = button.getAttribute('data-rename-name') || '';
 });
 
+document.addEventListener('change', function (event) {
+  var className = event.target.getAttribute('data-check-all');
+  if (!className) return;
+  document.querySelectorAll('.' + className).forEach(function (checkbox) {
+    checkbox.checked = event.target.checked;
+  });
+});
+
+document.addEventListener('show.bs.modal', function (event) {
+  if (event.target.id !== 'extract-modal') return;
+  var button = event.relatedTarget;
+  if (!button) return;
+  var log = event.target.querySelector('[data-extract-log]');
+  var submit = event.target.querySelector('[data-extract-submit]');
+  var refresh = event.target.querySelector('[data-extract-refresh]');
+  document.getElementById('extract-target').value = button.getAttribute('data-extract-target') || '';
+  document.getElementById('extract-name').value = button.getAttribute('data-extract-name') || '';
+  document.getElementById('extract-destination').value = button.getAttribute('data-extract-destination') || '';
+  document.getElementById('extract-overwrite').checked = false;
+  if (log) log.textContent = '等待开始...';
+  if (submit) submit.disabled = false;
+  if (refresh) refresh.classList.add('d-none');
+});
+
+document.addEventListener('submit', function (event) {
+  var form = event.target;
+  if (!form.matches('[data-extract-form]')) return;
+  event.preventDefault();
+
+  var log = form.querySelector('[data-extract-log]');
+  var submit = form.querySelector('[data-extract-submit]');
+  var refresh = form.querySelector('[data-extract-refresh]');
+  var decoder = new TextDecoder();
+
+  function appendLog(text) {
+    if (!log) return;
+    if (log.textContent === '等待开始...') log.textContent = '';
+    log.textContent += text;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  if (submit) submit.disabled = true;
+  if (refresh) refresh.classList.add('d-none');
+  if (log) log.textContent = '';
+  appendLog('正在连接解压任务...\n');
+
+  fetch(form.action, {
+    method: 'POST',
+    body: new FormData(form),
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'fetch' }
+  }).then(function (response) {
+    if (!response.body || !response.body.getReader) {
+      return response.text().then(function (text) {
+        appendLog(text);
+      });
+    }
+
+    var reader = response.body.getReader();
+    function readChunk() {
+      return reader.read().then(function (result) {
+        if (result.done) return;
+        appendLog(decoder.decode(result.value, { stream: true }));
+        return readChunk();
+      });
+    }
+    return readChunk().then(function () {
+      appendLog(decoder.decode());
+    });
+  }).catch(function (error) {
+    appendLog('请求失败：' + error.message + '\n');
+  }).finally(function () {
+    if (submit) submit.disabled = false;
+    if (refresh) refresh.classList.remove('d-none');
+  });
+});
+
 (function () {
   var forms = document.querySelectorAll('.monaco-form');
   if (!forms.length) return;

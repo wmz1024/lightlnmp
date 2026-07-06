@@ -45,6 +45,27 @@ function redirect(string $route): void
     exit;
 }
 
+function paginate(array $items, string $param = 'page', int $perPage = 10): array
+{
+    $total = count($items);
+    $pages = max(1, (int)ceil($total / $perPage));
+    $page = max(1, min($pages, (int)($_GET[$param] ?? 1)));
+    $offset = ($page - 1) * $perPage;
+    return [
+        'items' => array_slice($items, $offset, $perPage),
+        'page' => $page,
+        'pages' => $pages,
+        'total' => $total,
+        'param' => $param,
+    ];
+}
+
+function query_url(array $params): string
+{
+    $query = array_merge($_GET, $params);
+    return '?' . http_build_query($query);
+}
+
 function flash(?string $message = null, string $type = 'info'): ?array
 {
     if ($message !== null) {

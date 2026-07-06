@@ -7,6 +7,14 @@ final class AcmeManager
         return Db::conn()->query('SELECT c.*, s.name AS site_name FROM certificates c JOIN sites s ON s.id = c.site_id ORDER BY c.updated_at DESC')->fetchAll();
     }
 
+    public function certificate(int $id): ?array
+    {
+        $stmt = Db::conn()->prepare('SELECT c.*, s.name AS site_name FROM certificates c JOIN sites s ON s.id = c.site_id WHERE c.id = :id');
+        $stmt->execute(['id' => $id]);
+        $cert = $stmt->fetch();
+        return $cert ?: null;
+    }
+
     public function issue(int $siteId, string $identifier, bool $forceHttps): array
     {
         $siteManager = new SiteManager();
@@ -33,5 +41,30 @@ final class AcmeManager
         $run = SystemCommand::run(['ssl', 'renew-all']);
         Db::audit('ssl.renew-all', 'all', $run['ok'] ? 'ok' : 'fail', $run['output']);
         return $run;
+    }
+
+    public function renewSelected(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) {
+            return ['ok' => false, 'output' => 'No certificates selected'];
+        }
+
+        $errors = [];
+        foreach ($ids as $id) {
+            $cert = $this->certificate($id);
+            if (!$cert) {
+                $errors[] = '#' . $id . ': Certificate not found';
+                continue;
+            }
+            $run = SystemCommand::run(['ssl', 'renew', $cert['site_name'], $cert['identifier'], $cert['identifier_type']]);
+            Db::conn()->prepare('UPDATE certificates SET status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id')->execute(['status' => $run['ok'] ? 'issued' : 'failed', 'id' => $id]);
+            Db::audit('ssl.renew', $cert['site_name'] . ':' . $cert['identifier'], $run['ok'] ? 'ok' : 'fail', $run['output']);
+            if (!$run['ok']) {
+                $errors[] = $cert['identifier'] . ': ' . $run['output'];
+            }
+        }
+
+        return $errors ? ['ok' => false, 'output' => implode("\n", $errors)] : ['ok' => true, 'output' => 'ok'];
     }
 }

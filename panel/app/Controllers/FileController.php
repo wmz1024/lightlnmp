@@ -66,6 +66,45 @@ final class FileController
         exit;
     }
 
+    public function extract(string $method): void
+    {
+        if ($method !== 'POST') {
+            http_response_code(405);
+            exit('Method not allowed');
+        }
+
+        Csrf::verify();
+        $site = $this->site();
+        $archive = trim($_POST['target'] ?? '');
+        $destination = trim($_POST['destination'] ?? '');
+        $overwrite = ($_POST['overwrite'] ?? '0') === '1';
+
+        session_write_close();
+        @ini_set('zlib.output_compression', '0');
+        @ini_set('output_buffering', 'off');
+        while (ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('X-Accel-Buffering: no');
+
+        $log = static function (string $message): void {
+            echo '[' . date('H:i:s') . '] ' . $message . "\n";
+            @ob_flush();
+            flush();
+        };
+
+        try {
+            (new FileManager())->extractArchive($site, $archive, $destination, $overwrite, $log);
+            $log('完成');
+        } catch (Throwable $e) {
+            $log('错误：' . $e->getMessage());
+        }
+        exit;
+    }
+
     private function site(): array
     {
         $manager = new SiteManager();

@@ -24,6 +24,20 @@ valid_db_name() {
     printf '%s' "$1" | grep -Eq '^[A-Za-z0-9_]{1,64}$'
 }
 
+valid_db_charset() {
+    case "$1" in
+        utf8mb4|utf8|latin1|gbk) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+valid_db_collation() {
+    case "$1" in
+        utf8mb4_unicode_ci|utf8_general_ci|latin1_swedish_ci|gbk_chinese_ci) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 site_root() {
     valid_site "$1" || die "Invalid site name"
     printf '%s/%s' "$WEB_ROOT" "$1"
@@ -222,7 +236,8 @@ cmd_service() {
         *) die "Invalid service" ;;
     esac
     case "$action" in
-        status|start|stop|restart|reload) rc-service "$svc" "$action" ;;
+        status|start) rc-service "$svc" "$action" ;;
+        stop|restart) die "Stopping or restarting services is not allowed" ;;
         *) die "Invalid service action" ;;
     esac
 }
@@ -234,12 +249,18 @@ cmd_db() {
             mariadb -NBe "SHOW DATABASES WHERE \`Database\` NOT IN ('information_schema','mysql','performance_schema','sys');"
             ;;
         create)
-            db="$2"; valid_db_name "$db" || die "Invalid database name"
-            mariadb -e "CREATE DATABASE IF NOT EXISTS \`$db\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+            db="$2"; charset="${3:-utf8mb4}"; collation="${4:-utf8mb4_unicode_ci}"
+            valid_db_name "$db" || die "Invalid database name"
+            valid_db_charset "$charset" || die "Invalid database charset"
+            valid_db_collation "$collation" || die "Invalid database collation"
+            mariadb -e "CREATE DATABASE IF NOT EXISTS \`$db\` CHARACTER SET $charset COLLATE $collation;"
             ;;
         delete)
             db="$2"; valid_db_name "$db" || die "Invalid database name"
             mariadb -e "DROP DATABASE IF EXISTS \`$db\`;"
+            ;;
+        user-list)
+            mariadb -NBe "SELECT User, Host FROM mysql.user WHERE User NOT IN ('root','mysql','mariadb.sys','mysql.session','mysql.sys') ORDER BY User, Host;"
             ;;
         user-create)
             user="$2"; pass="$(sql_escape "$3")"; db="${4:-}"
@@ -250,10 +271,20 @@ cmd_db() {
                 mariadb -e "GRANT ALL PRIVILEGES ON \`$db\`.* TO '$user'@'localhost'; FLUSH PRIVILEGES;"
             fi
             ;;
+        user-delete)
+            user="$2"; valid_db_name "$user" || die "Invalid database user"
+            mariadb -e "DROP USER IF EXISTS '$user'@'localhost'; FLUSH PRIVILEGES;"
+            ;;
         user-password)
             user="$2"; pass="$(sql_escape "$3")"
             valid_db_name "$user" || die "Invalid database user"
             mariadb -e "ALTER USER '$user'@'localhost' IDENTIFIED BY '$pass'; FLUSH PRIVILEGES;"
+            ;;
+        grant)
+            user="$2"; db="$3"
+            valid_db_name "$user" || die "Invalid database user"
+            valid_db_name "$db" || die "Invalid database name"
+            mariadb -e "GRANT ALL PRIVILEGES ON \`$db\`.* TO '$user'@'localhost'; FLUSH PRIVILEGES;"
             ;;
         *) die "Invalid database action" ;;
     esac
@@ -294,6 +325,17 @@ cmd_ssl() {
             ;;
         renew-all)
             acme_cmd --cron --home /root/.acme.sh || acme_cmd --cron
+            nginx_reload
+            ;;
+        renew)
+            site="$2"; identifier="$3"; type="${4:-domain}"
+            valid_site "$site" || die "Invalid site name"
+            valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
+            if [ "$type" = "ip" ]; then
+                acme_cmd --renew --server letsencrypt -d "$identifier" --cert-profile shortlived --days 3 || acme_cmd --renew -d "$identifier"
+            else
+                acme_cmd --renew -d "$identifier"
+            fi
             nginx_reload
             ;;
         *) die "Invalid ssl action" ;;

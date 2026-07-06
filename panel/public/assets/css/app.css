@@ -33,9 +33,11 @@ code { color: #384250; }
 .monaco-editor-toolbar { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem .75rem; border-bottom: 1px solid rgba(148, 163, 184, .22); background: #111827; }
 .monaco-editor { height: clamp(440px, 68vh, 820px); }
 .monaco-source { border: 0; border-radius: 0; margin: 0 !important; resize: vertical; }
+.extract-log { height: 260px; margin: 0; padding: .875rem; overflow: auto; border-radius: 6px; background: #0f172a; color: #d6e2ff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
 @media (max-width: 991.98px) {
   .editor-card-header { align-items: stretch; }
   .editor-card-header .btn { align-self: flex-start; }
   .editor-path { max-width: 100%; }
   .monaco-editor { height: 58vh; min-height: 360px; }
+  .extract-log { height: 220px; }
 }

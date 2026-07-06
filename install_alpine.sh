@@ -80,6 +80,8 @@ apk_install() {
         php-mbstring php-openssl php-fileinfo php-posix php-curl php-ctype php-tokenizer
 
     install_php_opcache
+    install_php_extension zip
+    install_php_extension zlib
 
     if [ "$WITH_MARIADB" = "1" ]; then
         apk add --no-cache mariadb mariadb-client php-mysqli php-pdo_mysql
@@ -122,6 +124,28 @@ install_php_opcache() {
     else
         echo "Notice: $pkg is not available in the enabled repositories; continuing without OPcache." >&2
     fi
+}
+
+install_php_extension() {
+    ext="$1"
+    if php -m 2>/dev/null | grep -qi "^$ext$"; then
+        return 0
+    fi
+
+    if apk add --no-cache "php-$ext" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    php_suffix=$(detect_php_suffix)
+    if [ -n "$php_suffix" ]; then
+        pkg="php${php_suffix}-$ext"
+        if apk search -x "$pkg" | grep -q "^$pkg-"; then
+            apk add --no-cache "$pkg" || echo "Notice: failed to install $pkg; archive extraction may be limited." >&2
+            return 0
+        fi
+    fi
+
+    echo "Notice: php-$ext is not available; archive extraction may be limited." >&2
 }
 
 detect_php_fpm_service() {

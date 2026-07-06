@@ -21,6 +21,7 @@ final class Router
             'sites/action' => (new SiteController())->action($method),
             'files' => (new FileController())->index($method),
             'files/download' => (new FileController())->download(),
+            'files/extract' => (new FileController())->extract($method),
             'databases' => (new DatabaseController())->index($method),
             'ssl' => (new SslController())->index($method),
             'services' => (new ServiceController())->index($method),

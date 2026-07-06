@@ -25,6 +25,15 @@ $editorLanguages = [
     'xml' => 'xml',
 ];
 $editorLanguage = $editorLanguages[$editorExt] ?? 'plaintext';
+$isArchivePath = static function (string $itemPath): bool {
+    return (bool)preg_match('/\.(zip|tar|tar\.gz|tgz)$/i', $itemPath);
+};
+$defaultExtractPath = static function (string $itemPath): string {
+    $dir = dirname($itemPath);
+    $dir = $dir === '.' ? '' : trim($dir, '/');
+    $name = preg_replace('/\.(tar\.gz|tgz|zip|tar)$/i', '', basename($itemPath));
+    return trim(($dir === '' ? '' : $dir . '/') . ($name ?: 'archive'), '/');
+};
 ?>
 <div class="row g-3 file-manager-row">
     <div class="col-lg-<?= $editContent !== null ? '4' : '12' ?>">
@@ -46,7 +55,7 @@ $editorLanguage = $editorLanguages[$editorExt] ?? 'plaintext';
             <div class="table-responsive"><table class="table table-vcenter card-table table-hover">
                 <thead><tr><th>名称</th><th>类型</th><th>大小</th><th>修改时间</th><th class="text-end">操作</th></tr></thead><tbody>
                 <?php if ($path !== ''): $up = dirname($path); $up = $up === '.' ? '' : $up; ?><tr><td colspan="5"><a href="?r=files&site_id=<?= (int)$site['id'] ?>&path=<?= rawurlencode($up) ?>"><i class="ti ti-arrow-up me-1"></i>返回上级</a></td></tr><?php endif; ?>
-                <?php foreach ($items as $item): $itemPath = trim($path . '/' . $item['name'], '/'); ?>
+                <?php foreach ($items as $item): $itemPath = trim($path . '/' . $item['name'], '/'); $isArchive = $item['type'] === 'file' && $isArchivePath($itemPath); ?>
                     <tr>
                         <td><?= $item['type'] === 'dir' ? '<i class="ti ti-folder text-yellow me-2"></i><a class="fw-semibold" href="?r=files&site_id=' . (int)$site['id'] . '&path=' . rawurlencode($itemPath) . '">' . h($item['name']) . '</a>' : '<i class="ti ti-file-code text-secondary me-2"></i>' . h($item['name']) ?></td>
                         <td><span class="badge bg-secondary-lt text-secondary"><?= $item['type'] === 'dir' ? '目录' : '文件' ?></span></td>
@@ -54,6 +63,7 @@ $editorLanguage = $editorLanguages[$editorExt] ?? 'plaintext';
                         <td class="text-secondary"><?= h($item['mtime']) ?></td>
                         <td><div class="action-row">
                             <?php if ($item['type'] === 'file'): ?><a class="btn btn-sm btn-outline-secondary" href="?r=files/download&site_id=<?= (int)$site['id'] ?>&path=<?= rawurlencode($itemPath) ?>"><i class="ti ti-download me-1"></i>下载</a><a class="btn btn-sm btn-outline-primary" href="?r=files&site_id=<?= (int)$site['id'] ?>&path=<?= rawurlencode($path) ?>&edit=<?= rawurlencode($itemPath) ?>"><i class="ti ti-edit me-1"></i>编辑</a><?php endif; ?>
+                            <?php if ($isArchive): ?><button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#extract-modal" data-extract-target="<?= h($itemPath) ?>" data-extract-name="<?= h($item['name']) ?>" data-extract-destination="<?= h($defaultExtractPath($itemPath)) ?>"><i class="ti ti-file-zip me-1"></i>解压</button><?php endif; ?>
                             <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#rename-modal" data-rename-target="<?= h($itemPath) ?>" data-rename-name="<?= h($item['name']) ?>"><i class="ti ti-pencil me-1"></i>重命名</button>
                             <form method="post" data-confirm="确认删除？"><?= Csrf::field() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="target" value="<?= h($itemPath) ?>"><button class="btn btn-sm btn-outline-danger"><i class="ti ti-trash me-1"></i>删除</button></form>
                         </div></td>
@@ -93,6 +103,35 @@ $editorLanguage = $editorLanguages[$editorExt] ?? 'plaintext';
         </div>
     </div>
     <?php endif; ?>
+</div>
+<div class="modal modal-blur fade" id="extract-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <form class="modal-content" method="post" action="?r=files/extract&site_id=<?= (int)$site['id'] ?>" data-extract-form>
+            <?= Csrf::field() ?>
+            <input type="hidden" name="target" id="extract-target">
+            <div class="modal-header"><h5 class="modal-title">解压归档</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">归档文件</label>
+                    <input class="form-control" id="extract-name" disabled>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">目标目录</label>
+                    <input class="form-control" name="destination" id="extract-destination" required>
+                </div>
+                <label class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="overwrite" value="1" id="extract-overwrite">
+                    <span class="form-check-label">覆盖已有文件</span>
+                </label>
+                <pre class="extract-log" data-extract-log>等待开始...</pre>
+            </div>
+            <div class="modal-footer">
+                <a class="btn btn-outline-secondary d-none" href="?r=files&site_id=<?= (int)$site['id'] ?>&path=<?= rawurlencode($path) ?>" data-extract-refresh><i class="ti ti-refresh me-1"></i>刷新目录</a>
+                <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">关闭</button>
+                <button class="btn btn-primary" data-extract-submit><i class="ti ti-archive me-1"></i>开始解压</button>
+            </div>
+        </form>
+    </div>
 </div>
 <div class="modal modal-blur fade" id="rename-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">

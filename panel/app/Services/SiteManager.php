@@ -67,4 +67,27 @@ final class SiteManager
         }
         return $run;
     }
+
+    public function batch(array $ids, string $action): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        if (!$ids) {
+            return ['ok' => false, 'output' => 'No sites selected'];
+        }
+
+        $errors = [];
+        foreach ($ids as $id) {
+            $run = match ($action) {
+                'enable' => $this->setEnabled($id, true),
+                'disable' => $this->setEnabled($id, false),
+                'delete' => $this->delete($id),
+                default => ['ok' => false, 'output' => 'Unknown action'],
+            };
+            if (!$run['ok']) {
+                $errors[] = '#' . $id . ': ' . $run['output'];
+            }
+        }
+
+        return $errors ? ['ok' => false, 'output' => implode("\n", $errors)] : ['ok' => true, 'output' => 'ok'];
+    }
 }

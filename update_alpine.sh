@@ -192,6 +192,28 @@ detect_php_fpm_service() {
     echo "php-fpm"
 }
 
+install_php_extension() {
+    ext="$1"
+    if php -m 2>/dev/null | grep -qi "^$ext$"; then
+        return 0
+    fi
+
+    if apk add --no-cache "php-$ext" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    php_suffix=$(detect_php_suffix)
+    if [ -n "$php_suffix" ]; then
+        pkg="php${php_suffix}-$ext"
+        if apk search -x "$pkg" | grep -q "^$pkg-"; then
+            apk add --no-cache "$pkg" || echo "Notice: failed to install $pkg; archive extraction may be limited." >&2
+            return 0
+        fi
+    fi
+
+    echo "Notice: php-$ext is not available; archive extraction may be limited." >&2
+}
+
 configure_doas() {
     mkdir -p /etc/doas.d
     cat > /etc/doas.d/lightlnmp.conf <<EOF
@@ -287,6 +309,8 @@ reload_services() {
 require_root
 require_alpine
 require_existing_install
+install_php_extension zip
+install_php_extension zlib
 
 if [ "$FROM_REPO" = "1" ]; then
     update_from_repo

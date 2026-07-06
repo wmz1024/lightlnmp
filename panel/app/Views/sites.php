@@ -12,13 +12,23 @@
     </div>
     <div class="col-lg-8">
         <div class="card">
-            <div class="card-header"><h3 class="card-title mb-0">站点列表</h3></div>
+            <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap"><h3 class="card-title mb-0">站点列表</h3><span class="text-secondary small">共 <?= (int)$sitesPager['total'] ?> 个</span></div>
+            <div class="card-body border-bottom">
+                <form id="site-batch-form" method="post" data-confirm="确认执行批量操作？">
+                    <?= Csrf::field() ?><input type="hidden" name="action" value="batch">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <select class="form-select w-auto" name="batch_action" required><option value="">批量操作</option><option value="enable">启用</option><option value="disable">停用</option><option value="delete">删除</option></select>
+                        <button class="btn btn-outline-primary"><i class="ti ti-checks me-1"></i>应用</button>
+                    </div>
+                </form>
+            </div>
             <div class="table-responsive">
             <table class="table table-vcenter card-table table-hover">
-                <thead><tr><th>名称</th><th>根目录</th><th>状态</th><th>操作</th></tr></thead>
+                <thead><tr><th class="w-1"><input class="form-check-input" type="checkbox" data-check-all="site-row-check"></th><th>名称</th><th>根目录</th><th>状态</th><th>操作</th></tr></thead>
                 <tbody>
                 <?php foreach ($sites as $site): ?>
                     <tr>
+                        <td><input class="form-check-input site-row-check" type="checkbox" name="ids[]" value="<?= (int)$site['id'] ?>" form="site-batch-form"></td>
                         <td><div class="fw-semibold"><?= h($site['name']) ?></div><div class="text-secondary small">创建于 <?= h($site['created_at']) ?></div></td><td><code><?= h($site['root']) ?></code></td>
                         <td><span class="badge <?= $site['enabled'] ? 'bg-green-lt text-green' : 'bg-secondary-lt text-secondary' ?>"><?= $site['enabled'] ? '启用' : '停用' ?></span></td>
                         <td><div class="action-row">
@@ -29,9 +39,13 @@
                         </td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if (!$sites): ?><tr><td colspan="4" class="text-center text-secondary py-4">暂无站点</td></tr><?php endif; ?>
+                <?php if (!$sites): ?><tr><td colspan="5" class="text-center text-secondary py-4">暂无站点</td></tr><?php endif; ?>
                 </tbody>
             </table>
-        </div></div>
+        </div>
+        <?php if ($sitesPager['pages'] > 1): ?><div class="card-footer d-flex justify-content-end"><ul class="pagination m-0">
+            <?php for ($i = 1; $i <= $sitesPager['pages']; $i++): ?><li class="page-item <?= $i === $sitesPager['page'] ? 'active' : '' ?>"><a class="page-link" href="<?= h(query_url([$sitesPager['param'] => $i])) ?>"><?= $i ?></a></li><?php endfor; ?>
+        </ul></div><?php endif; ?>
+        </div>
     </div>
 </div>

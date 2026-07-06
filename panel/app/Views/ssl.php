@@ -10,8 +10,12 @@
         </form>
         <hr><form method="post" data-confirm="确认续期全部证书？"><?= Csrf::field() ?><input type="hidden" name="action" value="renew-all"><button class="btn btn-outline-primary w-100"><i class="ti ti-refresh me-1"></i>续期全部</button></form>
     </div></div></div>
-    <div class="col-lg-8"><div class="card"><div class="card-header"><h3 class="card-title mb-0">证书列表</h3></div><div class="table-responsive"><table class="table table-vcenter card-table table-hover"><thead><tr><th>站点</th><th>标识</th><th>类型</th><th>状态</th><th>更新时间</th></tr></thead><tbody>
-        <?php foreach ($certificates as $cert): ?><tr><td><?= h($cert['site_name']) ?></td><td><code><?= h($cert['identifier']) ?></code></td><td><span class="badge bg-blue-lt text-blue"><?= h($cert['identifier_type']) ?></span></td><td><span class="badge <?= $cert['status'] === 'issued' ? 'bg-green-lt text-green' : 'bg-red-lt text-red' ?>"><?= h($cert['status']) ?></span></td><td class="text-secondary"><?= h($cert['updated_at']) ?></td></tr><?php endforeach; ?>
-        <?php if (!$certificates): ?><tr><td colspan="5" class="text-center text-secondary py-4">暂无证书</td></tr><?php endif; ?>
-    </tbody></table></div></div></div>
+    <div class="col-lg-8"><div class="card"><div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap"><h3 class="card-title mb-0">证书列表</h3><span class="text-secondary small">共 <?= (int)$certPager['total'] ?> 个</span></div>
+    <div class="card-body border-bottom"><form id="cert-batch-form" method="post" data-confirm="确认续期选中证书？"><?= Csrf::field() ?><input type="hidden" name="action" value="renew-selected"><button class="btn btn-outline-primary"><i class="ti ti-refresh me-1"></i>续期选中</button></form></div>
+    <div class="table-responsive"><table class="table table-vcenter card-table table-hover"><thead><tr><th class="w-1"><input class="form-check-input" type="checkbox" data-check-all="cert-row-check"></th><th>站点</th><th>标识</th><th>类型</th><th>状态</th><th>更新时间</th></tr></thead><tbody>
+        <?php foreach ($certificates as $cert): ?><tr><td><input class="form-check-input cert-row-check" type="checkbox" name="ids[]" value="<?= (int)$cert['id'] ?>" form="cert-batch-form"></td><td><?= h($cert['site_name']) ?></td><td><code><?= h($cert['identifier']) ?></code></td><td><span class="badge bg-blue-lt text-blue"><?= h($cert['identifier_type']) ?></span></td><td><span class="badge <?= $cert['status'] === 'issued' ? 'bg-green-lt text-green' : 'bg-red-lt text-red' ?>"><?= h($cert['status']) ?></span></td><td class="text-secondary"><?= h($cert['updated_at']) ?></td></tr><?php endforeach; ?>
+        <?php if (!$certificates): ?><tr><td colspan="6" class="text-center text-secondary py-4">暂无证书</td></tr><?php endif; ?>
+    </tbody></table></div>
+    <?php if ($certPager['pages'] > 1): ?><div class="card-footer d-flex justify-content-end"><ul class="pagination m-0"><?php for ($i = 1; $i <= $certPager['pages']; $i++): ?><li class="page-item <?= $i === $certPager['page'] ? 'active' : '' ?>"><a class="page-link" href="<?= h(query_url([$certPager['param'] => $i])) ?>"><?= $i ?></a></li><?php endfor; ?></ul></div><?php endif; ?>
+    </div></div>
 </div>

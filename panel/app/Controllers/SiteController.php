@@ -6,11 +6,16 @@ final class SiteController
     {
         if ($method === 'POST') {
             Csrf::verify();
-            $run = (new SiteManager())->create(trim($_POST['name'] ?? ''), trim($_POST['domain'] ?? ''));
-            flash($run['ok'] ? '站点已创建' : $run['output'], $run['ok'] ? 'success' : 'danger');
+            $manager = new SiteManager();
+            $action = $_POST['action'] ?? 'create';
+            $run = $action === 'batch'
+                ? $manager->batch($_POST['ids'] ?? [], $_POST['batch_action'] ?? '')
+                : $manager->create(trim($_POST['name'] ?? ''), trim($_POST['domain'] ?? ''));
+            flash($run['ok'] ? ($action === 'batch' ? '批量操作完成' : '站点已创建') : $run['output'], $run['ok'] ? 'success' : 'danger');
             redirect('sites');
         }
-        view('sites', ['title' => '站点管理', 'sites' => (new SiteManager())->all()]);
+        $pager = paginate((new SiteManager())->all(), 'sites_page');
+        view('sites', ['title' => '站点管理', 'sites' => $pager['items'], 'sitesPager' => $pager]);
     }
 
     public function action(string $method): void
