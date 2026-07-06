@@ -12,8 +12,22 @@
         </form>
     </div>
 </div>
-<div class="row g-3">
-    <div class="col-lg-<?= $editContent !== null ? '6' : '12' ?>">
+<?php
+$editorExt = strtolower(pathinfo($editPath ?? '', PATHINFO_EXTENSION));
+$editorLanguages = [
+    'php' => 'php',
+    'html' => 'html',
+    'htm' => 'html',
+    'css' => 'css',
+    'js' => 'javascript',
+    'json' => 'json',
+    'md' => 'markdown',
+    'xml' => 'xml',
+];
+$editorLanguage = $editorLanguages[$editorExt] ?? 'plaintext';
+?>
+<div class="row g-3 file-manager-row">
+    <div class="col-lg-<?= $editContent !== null ? '4' : '12' ?>">
         <div class="card">
             <div class="card-header"><h3 class="card-title mb-0">文件列表</h3></div>
             <div class="card-body border-bottom">
@@ -50,13 +64,34 @@
         </div>
     </div>
     <?php if ($editContent !== null): ?>
-    <div class="col-lg-6"><div class="card"><div class="card-header"><h3 class="card-title mb-0">编辑 <code><?= h($editPath) ?></code></h3></div><div class="card-body">
-        <form method="post">
-            <?= Csrf::field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="target" value="<?= h($editPath) ?>">
-            <textarea class="form-control code-editor mb-3" name="content" spellcheck="false"><?= h($editContent) ?></textarea>
-            <button class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>保存文件</button>
-        </form>
-    </div></div></div>
+    <div class="col-lg-8">
+        <div class="card editor-card">
+            <div class="card-header editor-card-header">
+                <div>
+                    <h3 class="card-title mb-1">编辑文件</h3>
+                    <div class="text-secondary small text-truncate editor-path"><code><?= h($editPath) ?></code></div>
+                </div>
+                <a class="btn btn-outline-secondary" href="?r=files&site_id=<?= (int)$site['id'] ?>&path=<?= rawurlencode($path) ?>"><i class="ti ti-x me-1"></i>关闭</a>
+            </div>
+            <form method="post" class="monaco-form" data-editor-language="<?= h($editorLanguage) ?>">
+                <div class="card-body editor-card-body">
+                    <?= Csrf::field() ?><input type="hidden" name="action" value="save"><input type="hidden" name="target" value="<?= h($editPath) ?>">
+                    <div class="monaco-editor-shell">
+                        <div class="monaco-editor-toolbar">
+                            <span class="badge bg-blue-lt text-blue"><?= h($editorLanguage) ?></span>
+                            <span class="text-secondary small monaco-editor-status">Ln 1, Col 1</span>
+                        </div>
+                        <div class="monaco-editor" data-editor-target></div>
+                    </div>
+                    <textarea class="form-control code-editor monaco-source mb-3" name="content" spellcheck="false"><?= h($editContent) ?></textarea>
+                </div>
+                <div class="card-footer editor-card-footer">
+                    <button class="btn btn-primary"><i class="ti ti-device-floppy me-1"></i>保存文件</button>
+                    <span class="text-secondary small monaco-load-state">Textarea</span>
+                </div>
+            </form>
+        </div>
+    </div>
     <?php endif; ?>
 </div>
 <div class="modal modal-blur fade" id="rename-modal" tabindex="-1" aria-hidden="true">
