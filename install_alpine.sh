@@ -157,7 +157,13 @@ copy_project() {
     cp -R "$src_dir/panel" "$INSTALL_DIR/"
     cp -R "$src_dir/bin" "$INSTALL_DIR/"
     cp -R "$src_dir/config" "$INSTALL_DIR/"
+    for file in installall.sh install_alpine.sh update.sh update_alpine.sh; do
+        if [ -f "$src_dir/$file" ]; then
+            cp "$src_dir/$file" "$INSTALL_DIR/$file"
+        fi
+    done
     chmod 0755 "$INSTALL_DIR/bin/llctl"
+    chmod 0755 "$INSTALL_DIR"/*.sh 2>/dev/null || true
 }
 
 configure_dirs() {
@@ -287,6 +293,7 @@ INSERT INTO users(username, password_hash) VALUES('$ADMIN_USER', '$password_hash
 INSERT OR REPLACE INTO settings(key, value) VALUES('install_dir', '$INSTALL_DIR');
 INSERT OR REPLACE INTO settings(key, value) VALUES('web_root', '$WEB_ROOT');
 INSERT OR REPLACE INTO settings(key, value) VALUES('ssl_root', '$SSL_ROOT');
+INSERT OR REPLACE INTO settings(key, value) VALUES('panel_port', '$PANEL_PORT');
 INSERT OR REPLACE INTO settings(key, value) VALUES('php_fpm_service', '$(detect_php_fpm_service)');
 SQL
     chown "$PANEL_USER:$PANEL_USER" "$db"

@@ -57,6 +57,25 @@ sql_escape() {
     printf '%s' "$1" | sed "s/'/''/g"
 }
 
+panel_port() {
+    db="$INSTALL_DIR/panel/storage/panel.sqlite"
+    value=""
+    if [ -f "$db" ] && command -v sqlite3 >/dev/null 2>&1; then
+        value=$(sqlite3 "$db" "SELECT value FROM settings WHERE key='panel_port' LIMIT 1;" 2>/dev/null || true)
+    fi
+    case "$value" in
+        *[!0-9]*|'') echo "8888" ;;
+        *) echo "$value" ;;
+    esac
+}
+
+valid_panel_port() {
+    case "$1" in
+        *[!0-9]*|'') return 1 ;;
+    esac
+    [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
+}
+
 write_http_conf() {
     site="$1"
     domains="$2"
@@ -281,6 +300,57 @@ cmd_ssl() {
     esac
 }
 
+cmd_update_from_repo() {
+    port=$(panel_port)
+    no_system_config="0"
+    no_reload="0"
+
+    while [ "$#" -gt 0 ]; do
+        case "$1" in
+            --panel-port)
+                [ "$#" -ge 2 ] || die "Option $1 requires a value."
+                port="$2"
+                shift
+                ;;
+            --no-system-config) no_system_config="1" ;;
+            --no-reload) no_reload="1" ;;
+            *) die "Invalid update option: $1" ;;
+        esac
+        shift
+    done
+
+    valid_panel_port "$port" || die "Invalid panel port"
+
+    if [ -f "$INSTALL_DIR/update.sh" ]; then
+        updater="$INSTALL_DIR/update.sh"
+    elif [ -f "$INSTALL_DIR/update_alpine.sh" ]; then
+        updater="$INSTALL_DIR/update_alpine.sh"
+    else
+        die "Updater not found in $INSTALL_DIR"
+    fi
+
+    set -- --from-repo --install-dir "$INSTALL_DIR" --web-root "$WEB_ROOT" --ssl-root "$SSL_ROOT" --panel-port "$port"
+    if [ "$no_system_config" = "1" ]; then
+        set -- "$@" --no-system-config
+    fi
+    if [ "$no_reload" = "1" ]; then
+        set -- "$@" --no-reload
+    fi
+
+    sh "$updater" "$@"
+}
+
+cmd_update() {
+    action="${1:-}"
+    [ -n "$action" ] || die "Missing update action"
+    shift || true
+
+    case "$action" in
+        from-repo) cmd_update_from_repo "$@" ;;
+        *) die "Invalid update action" ;;
+    esac
+}
+
 cmd="${1:-}"
 [ -n "$cmd" ] || die "Missing command"
 shift || true
@@ -293,6 +363,7 @@ case "$cmd" in
     service) cmd_service "$@" ;;
     db) cmd_db "$@" ;;
     ssl) cmd_ssl "$@" ;;
+    update) cmd_update "$@" ;;
     nginx-reload) nginx_reload ;;
     *) die "Unknown command: $cmd" ;;
 esac

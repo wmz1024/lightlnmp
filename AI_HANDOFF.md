@@ -18,8 +18,10 @@ LightLNMP 是一个面向 Alpine Linux 的极轻量 LNMP WebHosting 管理面板
 ## 当前重要文件
 
 ```text
-install_alpine.sh          Alpine 一键安装脚本
-update_alpine.sh           已安装环境的更新脚本
+installall.sh              GitHub 一键安装入口，自动识别系统并 clone 仓库
+install_alpine.sh          Alpine 安装脚本
+update.sh                  自动识别系统并调用对应更新脚本
+update_alpine.sh           Alpine 已安装环境的更新脚本，支持 --from-repo
 bin/llctl                  root 权限白名单控制脚本，由 doas 调用
 panel/public/index.php     面板入口
 panel/app/bootstrap.php    面板启动、工具函数、依赖加载
@@ -37,9 +39,25 @@ docs/*.md                  安装、更新、使用、安全文档
 
 ## 安装方式
 
-用户会克隆仓库后执行脚本：
+推荐使用一键脚本安装，也可以手动克隆仓库后执行安装脚本。
+
+一键从 GitHub 安装：
 
 ```sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/installall.sh | sh
+```
+
+带 MariaDB：
+
+```sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/installall.sh | sh -s -- --with-mariadb --admin-password 'your-password'
+```
+
+也可以手动克隆后执行：
+
+```sh
+git clone https://github.com/wmz1024/lightlnmp.git lightlnmp
+cd lightlnmp
 sh install_alpine.sh
 ```
 
@@ -54,20 +72,32 @@ sh install_alpine.sh --with-mariadb --admin-password 'your-password'
 ## 更新方式
 
 ```sh
+sh /opt/lightlnmp/update.sh --from-repo
+```
+
+或通过 llctl：
+
+```sh
+/opt/lightlnmp/bin/llctl update from-repo
+```
+
+从本地 checkout 更新：
+
+```sh
 git pull
-sh update_alpine.sh
+sh update.sh
 ```
 
 只更新面板文件，不重写系统配置：
 
 ```sh
-sh update_alpine.sh --no-system-config
+sh update.sh --no-system-config
 ```
 
 不重载服务：
 
 ```sh
-sh update_alpine.sh --no-reload
+sh update.sh --no-reload
 ```
 
 更新脚本会备份 `/opt/lightlnmp` 到：
@@ -191,6 +221,8 @@ bin/llctl
 
 ```sh
 sh -n install_alpine.sh
+sh -n installall.sh
+sh -n update.sh
 sh -n update_alpine.sh
 sh -n bin/llctl
 ```
@@ -210,7 +242,7 @@ sh install_alpine.sh --with-mariadb --admin-password 'test-password'
 更新测试：
 
 ```sh
-sh update_alpine.sh
+sh update.sh
 ```
 
 服务检查：

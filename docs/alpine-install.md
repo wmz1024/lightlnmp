@@ -10,21 +10,39 @@
 
 ## Install
 
-Clone the repository, then run the installer from the cloned directory:
+Run the one-command installer from GitHub:
 
 ```sh
-git clone <this-repository-url> lightlnmp
-cd lightlnmp
-sh install_alpine.sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/installall.sh | sh
 ```
 
 Install with MariaDB:
 
 ```sh
-sh install_alpine.sh --with-mariadb
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/installall.sh | sh -s -- --with-mariadb
 ```
 
 Set a custom admin password and panel port:
+
+```sh
+wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/installall.sh | sh -s -- --admin-password 'change-this-password' --panel-port 8888
+```
+
+Alternatively, clone the repository, then run the Alpine installer from the cloned directory:
+
+```sh
+git clone https://github.com/wmz1024/lightlnmp.git lightlnmp
+cd lightlnmp
+sh install_alpine.sh
+```
+
+Manual checkout install with MariaDB:
+
+```sh
+sh install_alpine.sh --with-mariadb
+```
+
+Manual checkout install with a custom admin password and panel port:
 
 ```sh
 sh install_alpine.sh --admin-password 'change-this-password' --panel-port 8888

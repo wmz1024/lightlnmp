@@ -8,18 +8,22 @@ PANEL_PORT="8888"
 PANEL_USER="nginx"
 APPLY_SYSTEM_CONFIG="1"
 RELOAD_SERVICES="1"
+FROM_REPO="0"
+REPO_URL="${LIGHTLNMP_REPO_URL:-https://github.com/wmz1024/lightlnmp.git}"
 
 usage() {
     cat <<USAGE
 Usage: sh update_alpine.sh [options]
 
-Update an existing LightLNMP installation from this repository checkout.
+Update an existing LightLNMP installation from this repository checkout,
+or fetch the latest source from GitHub with --from-repo.
 
 Options:
   --install-dir PATH       Default: /opt/lightlnmp
   --web-root PATH          Default: /www/wwwroot
   --ssl-root PATH          Default: /etc/lightlnmp/ssl
   --panel-port PORT        Default: 8888
+  --from-repo              Fetch the latest source from GitHub before updating
   --no-system-config       Only update panel/bin/config files; do not rewrite /etc configs
   --no-reload              Do not restart/reload PHP-FPM, Nginx, or crond
   -h, --help               Show this help
@@ -32,6 +36,7 @@ while [ "$#" -gt 0 ]; do
         --web-root) [ "$#" -ge 2 ] || { echo "Option $1 requires a value." >&2; exit 1; }; WEB_ROOT="$2"; shift ;;
         --ssl-root) [ "$#" -ge 2 ] || { echo "Option $1 requires a value." >&2; exit 1; }; SSL_ROOT="$2"; shift ;;
         --panel-port) [ "$#" -ge 2 ] || { echo "Option $1 requires a value." >&2; exit 1; }; PANEL_PORT="$2"; shift ;;
+        --from-repo) FROM_REPO="1" ;;
         --no-system-config) APPLY_SYSTEM_CONFIG="0" ;;
         --no-reload) RELOAD_SERVICES="0" ;;
         -h|--help) usage; exit 0 ;;
@@ -75,13 +80,40 @@ require_existing_install() {
     fi
 }
 
+ensure_git() {
+    if command -v git >/dev/null 2>&1; then
+        return 0
+    fi
+    apk update
+    apk add --no-cache git ca-certificates
+}
+
+update_from_repo() {
+    ensure_git
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/lightlnmp-update.XXXXXX")
+    trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
+    repo_dir="$tmp_dir/lightlnmp"
+
+    git clone --depth 1 "$REPO_URL" "$repo_dir"
+
+    set -- --install-dir "$INSTALL_DIR" --web-root "$WEB_ROOT" --ssl-root "$SSL_ROOT" --panel-port "$PANEL_PORT"
+    if [ "$APPLY_SYSTEM_CONFIG" = "0" ]; then
+        set -- "$@" --no-system-config
+    fi
+    if [ "$RELOAD_SERVICES" = "0" ]; then
+        set -- "$@" --no-reload
+    fi
+
+    sh "$repo_dir/update_alpine.sh" "$@"
+}
+
 source_dir() {
     CDPATH= cd -- "$(dirname -- "$0")" && pwd
 }
 
 require_source_tree() {
     src_dir="$1"
-    for path in panel/app panel/public bin/llctl config/nginx/nginx.conf.tpl config/php/lightlnmp.conf.tpl; do
+    for path in panel/app panel/public bin/llctl config/nginx/nginx.conf.tpl config/php/lightlnmp.conf.tpl update_alpine.sh; do
         if [ ! -e "$src_dir/$path" ]; then
             echo "Missing source file or directory: $src_dir/$path" >&2
             exit 1
@@ -107,9 +139,15 @@ copy_project_files() {
     cp -R "$src_dir/panel/public" "$INSTALL_DIR/panel/"
     cp -R "$src_dir/bin" "$INSTALL_DIR/"
     cp -R "$src_dir/config" "$INSTALL_DIR/"
+    for file in installall.sh install_alpine.sh update.sh update_alpine.sh; do
+        if [ -f "$src_dir/$file" ]; then
+            cp "$src_dir/$file" "$INSTALL_DIR/$file"
+        fi
+    done
 
     mkdir -p "$INSTALL_DIR/panel/storage/logs" "$WEB_ROOT" "$SSL_ROOT"
     chmod 0755 "$INSTALL_DIR/bin/llctl"
+    chmod 0755 "$INSTALL_DIR"/*.sh 2>/dev/null || true
     chown -R "$PANEL_USER:$PANEL_USER" "$INSTALL_DIR/panel/storage" "$WEB_ROOT" 2>/dev/null || true
     chmod 0750 "$INSTALL_DIR/panel/storage" 2>/dev/null || true
     chmod 0750 "$SSL_ROOT" 2>/dev/null || true
@@ -227,6 +265,7 @@ update_panel_settings() {
 INSERT OR REPLACE INTO settings(key, value) VALUES('install_dir', '$install_dir_sql');
 INSERT OR REPLACE INTO settings(key, value) VALUES('web_root', '$web_root_sql');
 INSERT OR REPLACE INTO settings(key, value) VALUES('ssl_root', '$ssl_root_sql');
+INSERT OR REPLACE INTO settings(key, value) VALUES('panel_port', '$PANEL_PORT');
 INSERT OR REPLACE INTO settings(key, value) VALUES('php_fpm_service', '$php_fpm_service_sql');
 SQL
 }
@@ -248,6 +287,12 @@ reload_services() {
 require_root
 require_alpine
 require_existing_install
+
+if [ "$FROM_REPO" = "1" ]; then
+    update_from_repo
+    exit $?
+fi
+
 SRC_DIR=$(source_dir)
 require_source_tree "$SRC_DIR"
 

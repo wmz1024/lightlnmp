@@ -1,16 +1,36 @@
 # Updating LightLNMP
 
-Run the update script from a fresh or updated repository checkout:
+Update directly from GitHub on an installed server:
+
+```sh
+sh /opt/lightlnmp/update.sh --from-repo
+```
+
+Or run the same repository update through `llctl`:
+
+```sh
+/opt/lightlnmp/bin/llctl update from-repo
+```
+
+Run the update script from a fresh or updated local repository checkout:
 
 ```sh
 cd lightlnmp
-sh update_alpine.sh
+git pull
+sh update.sh
 ```
 
 If your panel was installed with a custom port or path, pass the same values:
 
 ```sh
-sh update_alpine.sh --panel-port 8888 --install-dir /opt/lightlnmp --web-root /www/wwwroot
+sh update.sh --panel-port 8888 --install-dir /opt/lightlnmp --web-root /www/wwwroot
+```
+
+The repository update mode accepts the same update options:
+
+```sh
+sh /opt/lightlnmp/update.sh --from-repo --panel-port 8888 --no-reload
+/opt/lightlnmp/bin/llctl update from-repo --panel-port 8888 --no-reload
 ```
 
 ## What It Updates
@@ -22,6 +42,10 @@ The updater replaces these installed files from the current repository checkout:
 /opt/lightlnmp/panel/public
 /opt/lightlnmp/bin
 /opt/lightlnmp/config
+/opt/lightlnmp/installall.sh
+/opt/lightlnmp/install_alpine.sh
+/opt/lightlnmp/update.sh
+/opt/lightlnmp/update_alpine.sh
 ```
 
 It preserves runtime data:
@@ -45,11 +69,11 @@ By default, the updater reapplies LightLNMP's panel-related Nginx, PHP-FPM, doas
 To update only panel files and skip system configuration rewrites:
 
 ```sh
-sh update_alpine.sh --no-system-config
+sh update.sh --no-system-config
 ```
 
 To skip service reloads:
 
 ```sh
-sh update_alpine.sh --no-reload
+sh update.sh --no-reload
 ```
