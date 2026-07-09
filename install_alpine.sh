@@ -284,6 +284,10 @@ CREATE TABLE IF NOT EXISTS sites (
   enabled INTEGER NOT NULL DEFAULT 1,
   force_https INTEGER NOT NULL DEFAULT 0,
   rewrite_rule TEXT NOT NULL DEFAULT 'default',
+  rewrite_mode TEXT NOT NULL DEFAULT 'preset',
+  rewrite_custom TEXT,
+  http_port INTEGER NOT NULL DEFAULT 80,
+  https_port INTEGER NOT NULL DEFAULT 443,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS domains (

@@ -13,6 +13,35 @@ document.addEventListener('show.bs.modal', function (event) {
   document.getElementById('rename-name').value = button.getAttribute('data-rename-name') || '';
 });
 
+function updateRewriteModeFields(modal) {
+  var mode = modal.querySelector('#site-config-rewrite-mode');
+  var preset = modal.querySelector('[data-rewrite-preset]');
+  var custom = modal.querySelector('[data-rewrite-custom]');
+  if (!mode || !preset || !custom) return;
+  preset.classList.toggle('d-none', mode.value !== 'preset');
+  custom.classList.toggle('d-none', mode.value !== 'custom');
+}
+
+document.addEventListener('show.bs.modal', function (event) {
+  if (event.target.id !== 'site-config-modal') return;
+  var button = event.relatedTarget;
+  if (!button) return;
+  var modal = event.target;
+  modal.querySelector('#site-config-id').value = button.getAttribute('data-site-id') || '';
+  modal.querySelector('#site-config-name').value = button.getAttribute('data-site-name') || '';
+  modal.querySelector('#site-config-http-port').value = button.getAttribute('data-site-http-port') || '80';
+  modal.querySelector('#site-config-https-port').value = button.getAttribute('data-site-https-port') || '443';
+  modal.querySelector('#site-config-rewrite-mode').value = button.getAttribute('data-site-rewrite-mode') || 'preset';
+  modal.querySelector('#site-config-rewrite-rule').value = button.getAttribute('data-site-rewrite-rule') || 'default';
+  modal.querySelector('#site-config-rewrite-custom').value = button.getAttribute('data-site-rewrite-custom') || '';
+  updateRewriteModeFields(modal);
+});
+
+document.addEventListener('change', function (event) {
+  if (event.target.id !== 'site-config-rewrite-mode') return;
+  updateRewriteModeFields(document.getElementById('site-config-modal'));
+});
+
 document.addEventListener('change', function (event) {
   var className = event.target.getAttribute('data-check-all');
   if (!className) return;

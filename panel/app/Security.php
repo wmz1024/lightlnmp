@@ -39,4 +39,29 @@ final class Security
     {
         return strlen($value) >= 8 && strlen($value) <= 128 && !preg_match('/[\'"`\\\r\n]/', $value);
     }
+
+    public static function port(int|string $value): bool
+    {
+        if (!preg_match('/^[0-9]+$/', (string)$value)) {
+            return false;
+        }
+        $port = (int)$value;
+        return $port >= 1 && $port <= 65535;
+    }
+
+    public static function rewriteMode(string $value): bool
+    {
+        return in_array($value, ['preset', 'custom'], true);
+    }
+
+    public static function customRewrite(string $value): bool
+    {
+        if (strlen($value) > 16 * 1024) {
+            return false;
+        }
+        if (preg_match('/[{}]/', $value)) {
+            return false;
+        }
+        return !preg_match('/\b(server|listen|location|root|alias|include|ssl_certificate|ssl_certificate_key)\b/i', $value);
+    }
 }

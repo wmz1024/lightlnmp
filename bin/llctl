@@ -50,9 +50,16 @@ valid_db_collation() {
 
 valid_rewrite_rule() {
     case "$1" in
-        default|wordpress|thinkphp|laravel|static) return 0 ;;
+        default|wordpress|thinkphp|laravel|static|custom) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+valid_port() {
+    case "$1" in
+        *[!0-9]*|'') return 1 ;;
+    esac
+    [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
 }
 
 site_root() {
@@ -147,12 +154,15 @@ write_http_conf() {
     site="$1"
     domains="$2"
     rule="${3:-default}"
+    http_port="${4:-80}"
+    custom_file="${5:-}"
     root="$(site_root "$site")"
     conf="$NGINX_SITES/lightlnmp-$site.conf"
-    write_rewrite_conf "$site" "$rule"
+    valid_port "$http_port" || die "Invalid HTTP port"
+    write_rewrite_conf "$site" "$rule" "$custom_file"
     cat > "$conf" <<EOF
 server {
-    listen 80;
+    listen $http_port;
     server_name $domains;
     root $root;
     index index.php index.html index.htm;
@@ -183,6 +193,7 @@ EOF
 write_rewrite_conf() {
     site="$1"
     rule="${2:-default}"
+    custom_file="${3:-}"
     valid_site "$site" || die "Invalid site name"
     valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
     mkdir -p "$REWRITE_ROOT"
@@ -203,6 +214,18 @@ write_rewrite_conf() {
         static)
             printf '%s\n' 'try_files $uri $uri/ =404;' > "$conf"
             ;;
+        custom)
+            if [ -z "$custom_file" ]; then
+                [ -f "$conf" ] || die "Custom rewrite config not found"
+                return 0
+            fi
+            custom_root="$INSTALL_DIR/panel/storage/rewrite"
+            resolved="$(realpath "$custom_file" 2>/dev/null || true)"
+            root_resolved="$(realpath "$custom_root" 2>/dev/null || true)"
+            [ -n "$resolved" ] && [ -n "$root_resolved" ] || die "Invalid custom rewrite file"
+            case "$resolved" in "$root_resolved"/*) ;; *) die "Invalid custom rewrite file" ;; esac
+            cp "$resolved" "$conf"
+            ;;
     esac
     chmod 0644 "$conf"
 }
@@ -212,16 +235,21 @@ write_https_conf() {
     identifier="$2"
     force_https="${3:-0}"
     rule="${4:-default}"
+    https_port="${5:-443}"
+    http_port="${6:-80}"
+    custom_file="${7:-}"
     valid_site "$site" || die "Invalid site name"
     valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
+    valid_port "$https_port" || die "Invalid HTTPS port"
+    valid_port "$http_port" || die "Invalid HTTP port"
     root="$(site_root "$site")"
     ssl_dir="$SSL_ROOT/$site"
     conf="$NGINX_SITES/lightlnmp-$site-ssl.conf"
-    write_rewrite_conf "$site" "$rule"
+    write_rewrite_conf "$site" "$rule" "$custom_file"
 
     cat > "$conf" <<EOF
 server {
-    listen 443 ssl http2;
+    listen $https_port ssl http2;
     server_name $identifier;
     root $root;
     index index.php index.html index.htm;
@@ -249,9 +277,14 @@ server {
 EOF
 
     if [ "$force_https" = "1" ]; then
+        if [ "$https_port" = "443" ]; then
+            redirect_target="https://\$host\$request_uri"
+        else
+            redirect_target="https://\$host:$https_port\$request_uri"
+        fi
         cat > "$NGINX_SITES/lightlnmp-$site.conf" <<EOF
 server {
-    listen 80;
+    listen $http_port;
     server_name $identifier;
     root $root;
 
@@ -262,7 +295,7 @@ server {
     }
 
     location / {
-        return 301 https://\$host\$request_uri;
+        return 301 $redirect_target;
     }
 }
 EOF
@@ -272,7 +305,9 @@ EOF
 cmd_site_create() {
     site="$1"
     domains="${2:-$1}"
+    http_port="${3:-80}"
     valid_site "$site" || die "Invalid site name"
+    valid_port "$http_port" || die "Invalid HTTP port"
     root="$(site_root "$site")"
     mkdir -p "$root"
     if [ ! -f "$root/index.php" ]; then
@@ -281,7 +316,23 @@ cmd_site_create() {
 EOF
     fi
     chown -R "$PANEL_USER:$PANEL_USER" "$root"
-    write_http_conf "$site" "$domains"
+    write_http_conf "$site" "$domains" default "$http_port"
+    nginx_reload
+}
+
+cmd_site_config() {
+    site="$1"
+    domains="$2"
+    rule="$3"
+    http_port="$4"
+    https_port="$5"
+    custom_file="${6:-}"
+    valid_site "$site" || die "Invalid site name"
+    valid_domain_or_ip "$domains" || die "Invalid domain/IP"
+    valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
+    valid_port "$http_port" || die "Invalid HTTP port"
+    valid_port "$https_port" || die "Invalid HTTPS port"
+    write_http_conf "$site" "$domains" "$rule" "$http_port" "$custom_file"
     nginx_reload
 }
 
@@ -289,10 +340,15 @@ cmd_site_rewrite() {
     site="$1"
     domains="$2"
     rule="$3"
+    http_port="${4:-80}"
+    https_port="${5:-443}"
+    custom_file="${6:-}"
     valid_site "$site" || die "Invalid site name"
     valid_domain_or_ip "$domains" || die "Invalid domain/IP"
     valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
-    write_http_conf "$site" "$domains" "$rule"
+    valid_port "$http_port" || die "Invalid HTTP port"
+    valid_port "$https_port" || die "Invalid HTTPS port"
+    write_http_conf "$site" "$domains" "$rule" "$http_port" "$custom_file"
     nginx_reload
 }
 
@@ -434,10 +490,12 @@ cmd_ssl() {
     action="$1"
     case "$action" in
         issue)
-            site="$2"; identifier="$3"; type="${4:-domain}"; force_https="${5:-0}"; rule="${6:-default}"
+            site="$2"; identifier="$3"; type="${4:-domain}"; force_https="${5:-0}"; rule="${6:-default}"; https_port="${7:-443}"; http_port="${8:-80}"; custom_file="${9:-}"
             valid_site "$site" || die "Invalid site name"
             valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
             valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
+            valid_port "$https_port" || die "Invalid HTTPS port"
+            valid_port "$http_port" || die "Invalid HTTP port"
             root="$(site_root "$site")"
             ssl_dir="$SSL_ROOT/$site"
             mkdir -p "$ssl_dir"
@@ -451,7 +509,15 @@ cmd_ssl() {
                 --fullchain-file "$ssl_dir/fullchain.pem" \
                 --reloadcmd "nginx -t && { rc-service nginx reload 2>/dev/null || systemctl reload nginx; }"
             chmod 0640 "$ssl_dir/privkey.pem" "$ssl_dir/fullchain.pem" 2>/dev/null || true
-            write_https_conf "$site" "$identifier" "$force_https" "$rule"
+            write_https_conf "$site" "$identifier" "$force_https" "$rule" "$https_port" "$http_port" "$custom_file"
+            nginx_reload
+            ;;
+        config)
+            site="$2"; identifier="$3"; force_https="${4:-0}"; rule="${5:-default}"; https_port="${6:-443}"; http_port="${7:-80}"; custom_file="${8:-}"
+            valid_site "$site" || die "Invalid site name"
+            valid_domain_or_ip "$identifier" || die "Invalid certificate identifier"
+            valid_rewrite_rule "$rule" || die "Invalid rewrite rule"
+            write_https_conf "$site" "$identifier" "$force_https" "$rule" "$https_port" "$http_port" "$custom_file"
             nginx_reload
             ;;
         renew-all)
@@ -530,6 +596,7 @@ shift || true
 
 case "$cmd" in
     site-create) cmd_site_create "$@" ;;
+    site-config) cmd_site_config "$@" ;;
     site-delete) cmd_site_delete "$@" ;;
     site-enable) cmd_site_enable "$@" ;;
     site-disable) cmd_site_disable "$@" ;;

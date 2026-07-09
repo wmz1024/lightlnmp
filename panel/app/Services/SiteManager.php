@@ -59,20 +59,89 @@ final class SiteManager
 
     public function setRewriteRule(int $id, string $rule): array
     {
-        if (!isset($this->rewriteRules[$rule])) {
-            return ['ok' => false, 'output' => 'Invalid rewrite rule'];
-        }
         $site = $this->find($id);
         if (!$site) {
             return ['ok' => false, 'output' => 'Site not found'];
         }
+        return $this->updateConfig(
+            $id,
+            (int)($site['http_port'] ?? 80),
+            (int)($site['https_port'] ?? 443),
+            'preset',
+            $rule,
+            (string)($site['rewrite_custom'] ?? '')
+        );
+    }
+
+    public function updateConfig(int $id, int|string $httpPort, int|string $httpsPort, string $rewriteMode, string $rewriteRule, string $customRewrite): array
+    {
+        $site = $this->find($id);
+        if (!$site) {
+            return ['ok' => false, 'output' => 'Site not found'];
+        }
+        if (!Security::port($httpPort) || !Security::port($httpsPort)) {
+            return ['ok' => false, 'output' => 'Invalid HTTP or HTTPS port'];
+        }
+        if (!Security::rewriteMode($rewriteMode)) {
+            return ['ok' => false, 'output' => 'Invalid rewrite mode'];
+        }
+        if ($rewriteMode === 'preset' && !isset($this->rewriteRules[$rewriteRule])) {
+            return ['ok' => false, 'output' => 'Invalid rewrite rule'];
+        }
+        if ($rewriteMode === 'custom' && !Security::customRewrite($customRewrite)) {
+            return ['ok' => false, 'output' => 'Invalid custom rewrite config'];
+        }
+
         $domain = $this->primaryDomain($id) ?: $site['name'];
-        $run = SystemCommand::run(['site-rewrite', $site['name'], $domain, $rule]);
+        $effectiveRule = $rewriteMode === 'custom' ? 'custom' : $rewriteRule;
+        $customFile = '';
+        if ($rewriteMode === 'custom') {
+            $customFile = $this->writeCustomRewriteTemp($site['name'], $customRewrite);
+        }
+
+        $run = SystemCommand::run(['site-config', $site['name'], $domain, $effectiveRule, (string)$httpPort, (string)$httpsPort, $customFile]);
         if ($run['ok']) {
-            Db::conn()->prepare('UPDATE sites SET rewrite_rule = :rule WHERE id = :id')->execute(['rule' => $rule, 'id' => $id]);
-            Db::audit('site.rewrite', $site['name'], 'ok', $rule);
+            foreach ($this->issuedCertificates($id) as $cert) {
+                $sslRun = SystemCommand::run(['ssl', 'config', $site['name'], $cert['identifier'], (string)($site['force_https'] ?? 0), $effectiveRule, (string)$httpsPort, (string)$httpPort, $customFile]);
+                if (!$sslRun['ok']) {
+                    $run = $sslRun;
+                    break;
+                }
+            }
+        }
+        if ($customFile !== '') {
+            @unlink($customFile);
+        }
+        if ($run['ok']) {
+            Db::conn()->prepare('UPDATE sites SET http_port = :http_port, https_port = :https_port, rewrite_mode = :rewrite_mode, rewrite_rule = :rewrite_rule, rewrite_custom = :rewrite_custom WHERE id = :id')->execute([
+                'http_port' => (int)$httpPort,
+                'https_port' => (int)$httpsPort,
+                'rewrite_mode' => $rewriteMode,
+                'rewrite_rule' => $rewriteRule,
+                'rewrite_custom' => $customRewrite,
+                'id' => $id,
+            ]);
+            Db::audit('site.config', $site['name'], 'ok', $rewriteMode . ':' . $effectiveRule);
         }
         return $run;
+    }
+
+    private function writeCustomRewriteTemp(string $siteName, string $content): string
+    {
+        $dir = STORAGE_PATH . '/rewrite';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0750, true);
+        }
+        $file = $dir . '/' . preg_replace('/[^A-Za-z0-9._-]/', '_', $siteName) . '-' . bin2hex(random_bytes(4)) . '.conf';
+        file_put_contents($file, trim($content) . "\n", LOCK_EX);
+        return $file;
+    }
+
+    private function issuedCertificates(int $siteId): array
+    {
+        $stmt = Db::conn()->prepare("SELECT * FROM certificates WHERE site_id = :site_id AND status = 'issued'");
+        $stmt->execute(['site_id' => $siteId]);
+        return $stmt->fetchAll();
     }
 
     public function logs(int $id, string $type): array

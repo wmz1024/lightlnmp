@@ -18,6 +18,7 @@ body { background: #f3f5f8; }
 .alert-pre { white-space: pre-wrap; font-family: inherit; }
 .code-editor { min-height: 62vh; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; background: #0f172a; color: #d6e2ff; }
 .code-editor:focus { background: #0f172a; color: #fff; }
+.code-editor-light { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; }
 code { color: #384250; }
 .action-row { display: flex; gap: .375rem; flex-wrap: wrap; justify-content: flex-end; }
 .metric-icon { width: 42px; height: 42px; display: inline-grid; place-items: center; border-radius: 10px; }

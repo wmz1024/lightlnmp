@@ -26,7 +26,19 @@ final class AcmeManager
             return ['ok' => false, 'output' => 'Only public domains or public IP addresses are allowed'];
         }
         $type = Security::ip($identifier) ? 'ip' : 'domain';
-        $run = SystemCommand::run(['ssl', 'issue', $site['name'], $identifier, $type, $forceHttps ? '1' : '0', $site['rewrite_rule'] ?? 'default']);
+        $rewriteRule = ($site['rewrite_mode'] ?? 'preset') === 'custom' ? 'custom' : ($site['rewrite_rule'] ?? 'default');
+        $customFile = '';
+        if ($rewriteRule === 'custom') {
+            $custom = (string)($site['rewrite_custom'] ?? '');
+            if (!Security::customRewrite($custom)) {
+                return ['ok' => false, 'output' => 'Invalid custom rewrite config'];
+            }
+            $customFile = $this->writeCustomRewriteTemp($site['name'], $custom);
+        }
+        $run = SystemCommand::run(['ssl', 'issue', $site['name'], $identifier, $type, $forceHttps ? '1' : '0', $rewriteRule, (string)($site['https_port'] ?? 443), (string)($site['http_port'] ?? 80), $customFile]);
+        if ($customFile !== '') {
+            @unlink($customFile);
+        }
         $stmt = Db::conn()->prepare('INSERT INTO certificates(site_id, identifier, identifier_type, status, updated_at) VALUES(:site_id, :identifier, :type, :status, CURRENT_TIMESTAMP) ON CONFLICT(site_id, identifier) DO UPDATE SET status = excluded.status, updated_at = CURRENT_TIMESTAMP');
         $stmt->execute(['site_id' => $siteId, 'identifier' => $identifier, 'type' => $type, 'status' => $run['ok'] ? 'issued' : 'failed']);
         if ($forceHttps) {
@@ -34,6 +46,17 @@ final class AcmeManager
         }
         Db::audit('ssl.issue', $site['name'] . ':' . $identifier, $run['ok'] ? 'ok' : 'fail', $run['output']);
         return $run;
+    }
+
+    private function writeCustomRewriteTemp(string $siteName, string $content): string
+    {
+        $dir = STORAGE_PATH . '/rewrite';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0750, true);
+        }
+        $file = $dir . '/' . preg_replace('/[^A-Za-z0-9._-]/', '_', $siteName) . '-' . bin2hex(random_bytes(4)) . '.conf';
+        file_put_contents($file, trim($content) . "\n", LOCK_EX);
+        return $file;
     }
 
     public function renewAll(): array

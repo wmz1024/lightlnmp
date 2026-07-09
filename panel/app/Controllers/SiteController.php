@@ -33,6 +33,7 @@ final class SiteController
             'disable' => $manager->setEnabled($id, false),
             'delete' => $manager->delete($id),
             'rewrite' => $manager->setRewriteRule($id, $_POST['rewrite_rule'] ?? 'default'),
+            'config' => $manager->updateConfig($id, $_POST['http_port'] ?? 80, $_POST['https_port'] ?? 443, $_POST['rewrite_mode'] ?? 'preset', $_POST['rewrite_rule'] ?? 'default', $_POST['rewrite_custom'] ?? ''),
             default => ['ok' => false, 'output' => 'Unknown action'],
         };
         flash($run['ok'] ? '操作完成' : $run['output'], $run['ok'] ? 'success' : 'danger');
