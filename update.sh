@@ -6,7 +6,7 @@ usage() {
 Usage: sh update.sh [options]
 
 Auto-detect the current system and run the matching LightLNMP updater.
-Currently supported system: Alpine Linux with OpenRC.
+Currently supported systems: Alpine Linux with OpenRC, Debian with systemd.
 
 Common options:
   --from-repo             Fetch the latest source from GitHub before updating
@@ -36,8 +36,17 @@ if [ -f /etc/alpine-release ]; then
     exit $?
 fi
 
+if [ -f /etc/debian_version ]; then
+    if [ ! -f "$script_dir/update_debian.sh" ]; then
+        echo "Missing Debian updater: $script_dir/update_debian.sh" >&2
+        exit 1
+    fi
+    sh "$script_dir/update_debian.sh" "$@"
+    exit $?
+fi
+
 cat >&2 <<'MSG'
 Unsupported system.
-LightLNMP currently supports Alpine Linux with OpenRC only.
+LightLNMP currently supports Alpine Linux with OpenRC and Debian with systemd.
 MSG
 exit 1

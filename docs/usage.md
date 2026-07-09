@@ -8,7 +8,7 @@ Open the panel URL printed by the installer:
 http://SERVER_IP:8888/
 ```
 
-Use the generated admin credentials or the credentials passed to `install_alpine.sh`.
+Use the generated admin credentials or the credentials passed to `install_alpine.sh` or `install_debian.sh`.
 
 ## Sites
 

@@ -4,12 +4,12 @@
 
 ## 项目目标
 
-LightLNMP 是一个面向 Alpine Linux 的极轻量 LNMP WebHosting 管理面板。
+LightLNMP 是一个面向 Alpine Linux 和 Debian 的极轻量 LNMP WebHosting 管理面板。
 
 核心目标：
 
 - 兼容 512MB RAM VPS。
-- Nginx、PHP-FPM、MariaDB、acme.sh 均通过 Alpine `apk` 安装。
+- Nginx、PHP-FPM、MariaDB、acme.sh 在 Alpine 通过 `apk` 安装，在 Debian 通过 `apt` 安装。
 - 面板使用 PHP + SQLite，不引入 Composer、Node、React、Vue 等构建链。
 - MariaDB 可选安装。
 - 支持网站管理、文件管理、在线编辑 `.php`、数据库管理、SSL 证书申请和续期。
@@ -20,9 +20,11 @@ LightLNMP 是一个面向 Alpine Linux 的极轻量 LNMP WebHosting 管理面板
 ```text
 installall.sh              GitHub 一键安装入口，自动识别系统并 clone 仓库
 install_alpine.sh          Alpine 安装脚本
+install_debian.sh          Debian 安装脚本
 updateall.sh               GitHub 一键更新入口，自动识别系统并 clone 仓库
 update.sh                  自动识别系统并调用对应更新脚本
 update_alpine.sh           Alpine 已安装环境的更新脚本，支持 --from-repo
+update_debian.sh           Debian 已安装环境的更新脚本，支持 --from-repo
 bin/llctl                  root 权限白名单控制脚本，由 doas 调用
 panel/public/index.php     面板入口
 panel/app/bootstrap.php    面板启动、工具函数、依赖加载
@@ -60,6 +62,7 @@ wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/installall.
 git clone https://github.com/wmz1024/lightlnmp.git lightlnmp
 cd lightlnmp
 sh install_alpine.sh
+# Debian 使用：sh install_debian.sh
 ```
 
 带 MariaDB：
@@ -139,6 +142,20 @@ Nginx pid 路径必须保持：
 
 不要改回 `/run/nginx.pid`，否则 OpenRC 可能无法正确停止旧 Nginx 进程，导致 `Address in use`。
 
+## Debian 兼容性注意
+
+Debian 当前第一目标是 Debian 12 + systemd：
+
+```text
+面板用户：www-data
+PHP-FPM 服务名：php8.2-fpm、php8.3-fpm 等自动探测
+Nginx pid：/run/nginx.pid
+站点配置目录：/etc/nginx/http.d
+提权工具：opendoas，配置写入 /etc/doas.conf 的 LightLNMP 管理块
+```
+
+Debian 的 `acme.sh` 如果不在已启用 apt 仓库中，安装脚本会继续完成，但 SSL 申请功能需要用户后续安装 `acme.sh`。
+
 ## 已处理过的问题
 
 - `php-fpm` 服务不存在：已改为探测 `php-fpm85`、`php-fpm84` 等实际服务名。
@@ -153,7 +170,7 @@ Nginx pid 路径必须保持：
 
 - 登录/退出。
 - 仪表盘。
-- 服务状态和启动/停止/重启。
+- 服务状态和启动；面板禁止停止和重启服务。
 - 网站创建、启用、停用、删除。
 - 文件管理：浏览、上传、下载、新建、删除、重命名。
 - 在线编辑：允许 `.php`，保存前备份到站点根目录 `.lightlnmp-backup`。
@@ -171,7 +188,7 @@ Nginx pid 路径必须保持：
 
 ## 权限模型
 
-面板 PHP-FPM 运行用户默认是 `nginx`。
+面板 PHP-FPM 运行用户：Alpine 默认是 `nginx`，Debian 默认是 `www-data`。
 
 面板通过 `doas` 调用：
 
@@ -224,14 +241,16 @@ bin/llctl
 
 ## 验证清单
 
-在 Alpine 测试机上优先执行：
+在目标系统测试机上优先执行：
 
 ```sh
 sh -n install_alpine.sh
+sh -n install_debian.sh
 sh -n installall.sh
 sh -n updateall.sh
 sh -n update.sh
 sh -n update_alpine.sh
+sh -n update_debian.sh
 sh -n bin/llctl
 ```
 
@@ -245,6 +264,7 @@ find panel -name '*.php' -print -exec php -l {} \;
 
 ```sh
 sh install_alpine.sh --with-mariadb --admin-password 'test-password'
+# Debian: sh install_debian.sh --with-mariadb --admin-password 'test-password'
 ```
 
 更新测试：
@@ -256,9 +276,16 @@ sh update.sh
 服务检查：
 
 ```sh
+# Alpine
 rc-service nginx status
 rc-service php-fpm85 status
 rc-service mariadb status
+nginx -t
+
+# Debian
+systemctl status nginx
+systemctl status php8.2-fpm
+systemctl status mariadb
 nginx -t
 ```
 

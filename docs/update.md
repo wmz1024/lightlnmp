@@ -51,9 +51,11 @@ The updater replaces these installed files from the current repository checkout:
 /opt/lightlnmp/config
 /opt/lightlnmp/installall.sh
 /opt/lightlnmp/install_alpine.sh
+/opt/lightlnmp/install_debian.sh
 /opt/lightlnmp/updateall.sh
 /opt/lightlnmp/update.sh
 /opt/lightlnmp/update_alpine.sh
+/opt/lightlnmp/update_debian.sh
 ```
 
 It preserves runtime data:
@@ -72,7 +74,7 @@ Before making changes, it creates a tar backup under:
 
 ## System Configs
 
-By default, the updater reapplies LightLNMP's panel-related Nginx, PHP-FPM, doas, and ACME cron configuration. This is useful when an update fixes service names or runtime paths.
+By default, the updater reapplies LightLNMP's panel-related Nginx, PHP-FPM, doas, and ACME cron configuration. On Alpine it uses OpenRC; on Debian it uses systemd and `/etc/cron.daily`.
 
 To update only panel files and skip system configuration rewrites:
 

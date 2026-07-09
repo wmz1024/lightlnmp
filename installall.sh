@@ -5,10 +5,11 @@ REPO_URL="${LIGHTLNMP_REPO_URL:-https://github.com/wmz1024/lightlnmp.git}"
 
 usage() {
     cat <<USAGE
-Usage: sh installall.sh [install_alpine.sh options]
+Usage: sh installall.sh [installer options]
 
 Clone LightLNMP from GitHub, auto-detect the current system, and run the
-matching installer. Currently supported system: Alpine Linux with OpenRC.
+matching installer. Currently supported systems: Alpine Linux with OpenRC,
+Debian with systemd.
 
 Examples:
   sh installall.sh
@@ -36,6 +37,14 @@ detect_system() {
         echo "alpine"
         return 0
     fi
+    if [ -f /etc/debian_version ]; then
+        if ! command -v systemctl >/dev/null 2>&1; then
+            echo "Debian was detected, but systemd was not found." >&2
+            exit 1
+        fi
+        echo "debian"
+        return 0
+    fi
     echo "unsupported"
 }
 
@@ -57,6 +66,25 @@ run_alpine_install() {
     sh "$repo_dir/install_alpine.sh" "$@"
 }
 
+ensure_git_debian() {
+    if command -v git >/dev/null 2>&1; then
+        return 0
+    fi
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends git ca-certificates
+}
+
+run_debian_install() {
+    ensure_git_debian
+    tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/lightlnmp-install.XXXXXX")
+    trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
+    repo_dir="$tmp_dir/lightlnmp"
+
+    git clone --depth 1 "$REPO_URL" "$repo_dir"
+    sh "$repo_dir/install_debian.sh" "$@"
+}
+
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
     usage
     exit 0
@@ -66,10 +94,11 @@ require_root
 
 case "$(detect_system)" in
     alpine) run_alpine_install "$@" ;;
+    debian) run_debian_install "$@" ;;
     *)
         cat >&2 <<'MSG'
 Unsupported system.
-LightLNMP currently supports Alpine Linux with OpenRC only.
+LightLNMP currently supports Alpine Linux with OpenRC and Debian with systemd.
 MSG
         exit 1
         ;;

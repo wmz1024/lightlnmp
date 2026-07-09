@@ -2,9 +2,9 @@
 
 [English](README.md)
 
-LightLNMP 是一个面向 Alpine Linux 的轻量 LNMP WebHosting 管理面板，使用 Nginx、PHP-FPM、SQLite、可选 MariaDB 和 acme.sh。
+LightLNMP 是一个面向 Alpine Linux 和 Debian 的轻量 LNMP WebHosting 管理面板，使用 Nginx、PHP-FPM、SQLite、可选 MariaDB 和 acme.sh。
 
-面板本体使用 PHP 编写，元数据存储在 SQLite 中。系统组件均通过 Alpine `apk` 安装，不依赖 Composer、Node、React、Vue 等构建链。
+面板本体使用 PHP 编写，元数据存储在 SQLite 中。Alpine 使用 `apk` 安装系统组件，Debian 使用 `apt` 安装系统组件，不依赖 Composer、Node、React、Vue 等构建链。
 
 ## 快速安装
 
@@ -31,7 +31,8 @@ wget -O - https://raw.githubusercontent.com/wmz1024/lightlnmp/master/installall.
 ```sh
 git clone https://github.com/wmz1024/lightlnmp.git lightlnmp
 cd lightlnmp
-sh install_alpine.sh
+sh install_alpine.sh   # Alpine
+sh install_debian.sh   # Debian
 ```
 
 安装完成后访问：
@@ -96,6 +97,7 @@ sh update.sh
 ## 文档
 
 - [Alpine 安装说明](docs/alpine-install.md)
+- [Debian 安装说明](docs/debian-install.md)
 - [更新说明](docs/update.md)
 - [使用说明](docs/usage.md)
 - [安全说明](docs/security.md)

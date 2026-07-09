@@ -7,6 +7,15 @@ SSL_ROOT="${LIGHTLNMP_SSL_ROOT:-/etc/lightlnmp/ssl}"
 NGINX_SITES="/etc/nginx/http.d"
 PHP_FPM_SERVICE="${LIGHTLNMP_PHP_FPM_SERVICE:-}"
 REWRITE_ROOT="/etc/lightlnmp/rewrite"
+PANEL_USER="${LIGHTLNMP_PANEL_USER:-}"
+
+if [ -z "$PANEL_USER" ]; then
+    if id nginx >/dev/null 2>&1; then
+        PANEL_USER="nginx"
+    else
+        PANEL_USER="www-data"
+    fi
+fi
 
 die() {
     echo "$*" >&2
@@ -53,21 +62,57 @@ site_root() {
 
 nginx_reload() {
     nginx -t
-    rc-service nginx reload
+    service_action nginx reload
+}
+
+service_action() {
+    svc="$1"
+    action="$2"
+    if command -v rc-service >/dev/null 2>&1; then
+        rc-service "$svc" "$action"
+        return $?
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+        case "$action" in
+            status) systemctl is-active --quiet "$svc" ;;
+            start) systemctl start "$svc" ;;
+            reload) systemctl reload "$svc" || systemctl restart "$svc" ;;
+            *) die "Invalid service action" ;;
+        esac
+        return $?
+    fi
+    die "No supported service manager found"
+}
+
+systemd_unit_exists() {
+    svc="$1"
+    command -v systemctl >/dev/null 2>&1 || return 1
+    systemctl list-unit-files "$svc.service" --no-legend 2>/dev/null | grep -q "^$svc\.service"
 }
 
 php_fpm_service() {
-    if [ -n "$PHP_FPM_SERVICE" ] && [ -f "/etc/init.d/$PHP_FPM_SERVICE" ]; then
+    if [ -n "$PHP_FPM_SERVICE" ] && { [ -f "/etc/init.d/$PHP_FPM_SERVICE" ] || systemd_unit_exists "$PHP_FPM_SERVICE"; }; then
         echo "$PHP_FPM_SERVICE"
         return 0
     fi
     php_suffix=$(php -r 'echo PHP_MAJOR_VERSION . PHP_MINOR_VERSION;' 2>/dev/null || true)
+    php_dotted=$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;' 2>/dev/null || true)
+    if [ -n "$php_dotted" ] && systemd_unit_exists "php$php_dotted-fpm"; then
+        echo "php$php_dotted-fpm"
+        return 0
+    fi
     if [ -n "$php_suffix" ] && [ -f "/etc/init.d/php-fpm$php_suffix" ]; then
         echo "php-fpm$php_suffix"
         return 0
     fi
     for svc in php-fpm85 php-fpm84 php-fpm83 php-fpm82 php-fpm81 php-fpm php85-fpm php84-fpm php83-fpm php82-fpm php81-fpm; do
         if [ -f "/etc/init.d/$svc" ]; then
+            echo "$svc"
+            return 0
+        fi
+    done
+    for svc in php8.4-fpm php8.3-fpm php8.2-fpm php8.1-fpm php8.0-fpm php-fpm; do
+        if systemd_unit_exists "$svc"; then
             echo "$svc"
             return 0
         fi
@@ -235,7 +280,7 @@ cmd_site_create() {
 <?php echo 'LightLNMP site: ' . htmlspecialchars('$site', ENT_QUOTES, 'UTF-8');
 EOF
     fi
-    chown -R nginx:nginx "$root"
+    chown -R "$PANEL_USER:$PANEL_USER" "$root"
     write_http_conf "$site" "$domains"
     nginx_reload
 }
@@ -297,11 +342,11 @@ cmd_service() {
         nginx) svc="nginx" ;;
         php-fpm) svc="$(php_fpm_service)" ;;
         mariadb) svc="mariadb" ;;
-        crond) svc="crond" ;;
+        crond) if command -v rc-service >/dev/null 2>&1; then svc="crond"; else svc="cron"; fi ;;
         *) die "Invalid service" ;;
     esac
     case "$action" in
-        status|start) rc-service "$svc" "$action" ;;
+        status|start) service_action "$svc" "$action" ;;
         stop|restart) die "Stopping or restarting services is not allowed" ;;
         *) die "Invalid service action" ;;
     esac
@@ -404,7 +449,7 @@ cmd_ssl() {
             acme_cmd --install-cert -d "$identifier" \
                 --key-file "$ssl_dir/privkey.pem" \
                 --fullchain-file "$ssl_dir/fullchain.pem" \
-                --reloadcmd "nginx -t && rc-service nginx reload"
+                --reloadcmd "nginx -t && { rc-service nginx reload 2>/dev/null || systemctl reload nginx; }"
             chmod 0640 "$ssl_dir/privkey.pem" "$ssl_dir/fullchain.pem" 2>/dev/null || true
             write_https_conf "$site" "$identifier" "$force_https" "$rule"
             nginx_reload
